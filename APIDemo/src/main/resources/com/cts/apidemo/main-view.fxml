@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--suppress JavaFxUnresolvedFxIdReference -->
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<VBox prefHeight="952.0" prefWidth="1251.0" style="-fx-spacing: 5;" xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.cts.apidemo.MainController">
+
+    <VBox fx:id="authControlsContainer" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;">
+
+        <VBox.margin>
+            <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+        </VBox.margin>
+
+        <Label style="-fx-underline: true;" text="Authentication" />
+
+        <HBox alignment="CENTER_LEFT" spacing="10.0">
+            <HBox spacing="4.0">
+                <children>
+                    <ToggleButton fx:id="simToggleButton" minWidth="-Infinity" mnemonicParsing="false" prefWidth="75.0" selected="true" text="Simulator">
+                        <toggleGroup>
+                            <ToggleGroup fx:id="serverTypeToggleGroup" />
+                        </toggleGroup>
+                    </ToggleButton>
+                    <ToggleButton fx:id="liveToggleButton" minWidth="-Infinity" mnemonicParsing="false" prefWidth="75.0" text="Live" toggleGroup="$serverTypeToggleGroup" />
+                </children>
+            </HBox>
+            <TextField fx:id="firmInput" promptText="Firm" />
+            <TextField fx:id="usernameInput" promptText="Username" />
+            <PasswordField fx:id="passwordInput" promptText="Password" />
+            <Button fx:id="loginButton" onAction="#onLoginButtonClicked" prefWidth="75.0" text="Login" />
+            <Button fx:id="logoutButton" onAction="#onLogoutButtonClicked" prefWidth="75.0" text="Logout" />
+        </HBox>
+
+        <HBox alignment="BASELINE_LEFT" spacing="4.0">
+            <VBox.margin>
+                <Insets top="4.0" />
+            </VBox.margin>
+            <Label fx:id="loggedInIndicator" text="Status:" />
+
+            <Label fx:id="loggedInValue" text="-" />
+        </HBox>
+    </VBox>
+    <HBox alignment="CENTER_LEFT" prefHeight="45.0" spacing="10.0" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;">
+        <children>
+            <HBox alignment="CENTER_LEFT" spacing="4.0">
+                <children>
+                    <Label text="Account:" />
+                    <ComboBox fx:id="accountPickerComboBox" onAction="#onAccountSelectionChanged" prefWidth="200.0" />
+                    <Label fx:id="accountsLoadingLabel" text="Loading ...">
+                        <font>
+                            <Font name="System Italic" size="12.0" />
+                        </font>
+                    </Label>
+                </children>
+            </HBox>
+            <HBox alignment="CENTER" prefHeight="100.0" prefWidth="200.0" spacing="4.0">
+                <children>
+                    <Label text="P&amp;L:" />
+                    <Label fx:id="profitLossLabel" text="12,000" textFill="BLUE" />
+                </children>
+            </HBox>
+            <HBox alignment="CENTER" prefHeight="100.0" prefWidth="200.0" spacing="4.0">
+                <children>
+                    <Label text="Cash:" />
+                    <Label fx:id="cashLabel" text="50,000" textFill="BLUE" />
+                </children>
+            </HBox>
+        </children>
+        <VBox.margin>
+            <Insets bottom="12.0" left="12.0" right="12.0" />
+        </VBox.margin>
+    </HBox>
+
+    <VBox fx:id="marketDataMainContainer" prefHeight="200.0" spacing="8" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;">
+
+        <VBox.margin>
+            <Insets bottom="12.0" left="12.0" right="12.0" />
+        </VBox.margin>
+
+        <Label style="-fx-underline: true;" text="Contract Search and Selection" />
+
+        <HBox spacing="8">
+
+
+            <VBox fx:id="searchControlsContainer" maxWidth="250.0" spacing="8" HBox.hgrow="ALWAYS">
+                <TextField fx:id="contractSearchTextField" onKeyPressed="#onContractSearchTextFieldKeyPressed" promptText="Search Contracts" />
+                <TreeView fx:id="contractPickerTreeView" minHeight="200.0" prefHeight="200.0" prefWidth="250.0" />
+                <Button fx:id="loadExchangeContractButton" onAction="#onSelectContractButtonClicked" prefWidth="250.0" text="Load" HBox.hgrow="ALWAYS" />
+            </VBox>
+
+            <VBox fx:id="marketSubscriptionContainer" maxWidth="500" HBox.hgrow="SOMETIMES">
+
+                <HBox fx:id="marketSubscriptionControlsContainer" alignment="CENTER_LEFT" spacing="8.0">
+                    <ComboBox fx:id="expiryPickerComboBox" maxWidth="1.7976931348623157E308" prefWidth="100.0" HBox.hgrow="ALWAYS" />
+                    <Button fx:id="subscribeMarketDataButton" onAction="#onSubscribeMarketDataButtonClicked" prefWidth="85.0" text="Subscribe" />
+                    <Button fx:id="unsubscribeMarketDataButton" onAction="#onUnsubscribeMarketDataButtonClicked" prefWidth="85.0" text="Unsubscribe" />
+                </HBox>
+                <HBox id="dd df" alignment="CENTER" prefHeight="30.0">
+                    <children>
+                        <HBox alignment="TOP_CENTER" prefWidth="75.0" style="-fx-alignment: center;">
+                            <children>
+                                <Label fx:id="highPriceLabel" text="16350" textAlignment="CENTER">
+                                    <font>
+                                        <Font name="System Bold" size="12.0" />
+                                    </font>
+                                </Label>
+                            </children>
+                        </HBox>
+                        <HBox alignment="CENTER" prefWidth="200.0" HBox.hgrow="ALWAYS">
+                            <children>
+                                <Label fx:id="subscribedMarketDecsriptionLabel" text="Label" />
+                            </children>
+                        </HBox>
+                        <HBox prefWidth="75.0" style="-fx-alignment: center;">
+                            <children>
+                                <Label fx:id="marketModeLabel" text="Open" textFill="#04b904">
+                                    <font>
+                                        <Font name="System Bold" size="12.0" />
+                                    </font>
+                                </Label>
+                            </children>
+                        </HBox>
+                    </children>
+                </HBox>
+                <HBox prefHeight="100.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                    <children>
+                        <TableView fx:id="marketDepthBidsTableView" prefHeight="200.0" prefWidth="200.0" HBox.hgrow="ALWAYS">
+                            <columns>
+                                <TableColumn fx:id="bidPriceTableColumn" prefWidth="100.0" text="Bid Price" />
+                                <TableColumn fx:id="bidVolumeTableColumn" prefWidth="100.0" text="Volume" />
+                            </columns>
+                        </TableView>
+                        <TableView fx:id="marketDepthOffersTableView" prefHeight="200.0" prefWidth="200.0" HBox.hgrow="ALWAYS">
+                            <columns>
+                                <TableColumn fx:id="offerPriceTableColumn" prefWidth="100.0" text="Offer Price" />
+                                <TableColumn fx:id="offerVolumeTableColumn" prefWidth="100.0" text="Volume" />
+                            </columns>
+                        </TableView>
+                    </children>
+                </HBox>
+                <HBox id="dd df" alignment="CENTER" prefHeight="30.0">
+                    <children>
+                        <HBox alignment="TOP_CENTER" prefWidth="75.0" style="-fx-alignment: center;">
+                            <children>
+                                <Label fx:id="lowPriceLabel" text="16350" textAlignment="CENTER">
+                                    <font>
+                                        <Font name="System Bold" size="12.0" />
+                                    </font>
+                                </Label>
+                            </children>
+                        </HBox>
+                        <HBox alignment="CENTER" prefWidth="200.0" HBox.hgrow="ALWAYS">
+                            <children>
+                                <Label fx:id="lastTradeLabel" text="10@9940" textFill="#2ca11d">
+                                    <font>
+                                        <Font name="System Bold" size="12.0" />
+                                    </font>
+                                </Label>
+                            </children>
+                        </HBox>
+                        <HBox prefWidth="75.0" style="-fx-alignment: center;">
+                            <children>
+                                <Label fx:id="totalTradedVolumeLabel" text="1,780,900">
+                                    <font>
+                                        <Font name="System Bold" size="12.0" />
+                                    </font>
+                                </Label>
+                            </children>
+                        </HBox>
+                    </children>
+                </HBox>
+                <HBox alignment="CENTER" spacing="30.0">
+                    <children>
+                        <HBox spacing="4.0">
+                            <children>
+                                <Label text="Position:" />
+                                <Label fx:id="currentPositionLabel" text="0-0" />
+                            </children>
+                        </HBox>
+                        <HBox spacing="4.0">
+                            <children>
+                                <Label text="Working:" />
+                                <Label fx:id="currentWorkingLabel" text="0-0" />
+                            </children>
+                        </HBox>
+                        <HBox spacing="4.0">
+                            <children>
+                                <Label text="PL:" />
+                                <Label fx:id="currentPLLabel" text="500" />
+                            </children>
+                        </HBox>
+                    </children>
+                </HBox>
+            </VBox>
+
+            <VBox fx:id="chartDataSubscriptionContainer" maxWidth="200" spacing="8" HBox.hgrow="ALWAYS">
+                <HBox fx:id="chartDataControlsContainer" alignment="CENTER" spacing="8">
+                    <Button fx:id="subscribeChartDataButton" text="Subscribe" />
+                    <Button fx:id="unsubscribeChartDataButton" text="Unsubscribe" />
+                </HBox>
+                <Label fx:id="chartDataFeed" alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;" text="Chart Data" textAlignment="CENTER" VBox.vgrow="ALWAYS">
+                    <VBox.margin>
+                        <Insets bottom="8.0" left="8.0" right="8.0" />
+                    </VBox.margin>
+                </Label>
+            </VBox>
+        </HBox>
+
+    </VBox>
+    <VBox fx:id="orderSubmissionContainer" spacing="8" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;">
+        <VBox.margin>
+            <Insets bottom="12.0" left="12.0" right="12.0" />
+        </VBox.margin>
+
+        <Label style="-fx-underline: true;" text="Order Submission" />
+
+        <HBox alignment="CENTER_LEFT" spacing="8">
+            <Spinner fx:id="orderVolumeSpinner" editable="true" initialValue="1" max="100" min="1" />
+            <RadioButton fx:id="orderBidRadioButton" onAction="#bidRadioButtonClicked" text="Bid">
+            <toggleGroup>
+               <ToggleGroup fx:id="orderSideToggleGroup" />
+            </toggleGroup></RadioButton>
+            <RadioButton fx:id="orderOfferRadioButton" onAction="#offerRadioButtonClicked" text="Offer" toggleGroup="$orderSideToggleGroup" />
+            <TextField fx:id="orderPriceTextField" promptText="Price" />
+            <Button fx:id="orderSubmitButton" onAction="#orderSubmitButtonClicked" prefWidth="85.0" text="Submit" />
+        </HBox>
+    </VBox>
+
+    <VBox fx:id="positionUpdateContainer" maxHeight="1.7976931348623157E308" spacing="8" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;" VBox.vgrow="ALWAYS">
+        <VBox.margin>
+            <Insets bottom="12.0" left="12.0" right="12.0" />
+        </VBox.margin>
+        <Label style="-fx-underline: true;" text="Position Updates" />
+      <TableView fx:id="positionsTableView" prefHeight="200.0" prefWidth="200.0">
+        <columns>
+          <TableColumn fx:id="positionMarketTableColumn" prefWidth="300.0" text="Market" />
+          <TableColumn fx:id="positionNetTableColumn" minWidth="0.0" prefWidth="120.0" text="Net" />
+            <TableColumn fx:id="positionPLTableColumn" prefWidth="120.0" text="P&amp;L" />
+            <TableColumn fx:id="positionSideTableColumn" prefWidth="120.0" text="Buy/Sell" />
+            <TableColumn fx:id="postionWorkingTableColumn" prefWidth="120.0" text="Working" />
+        </columns>
+      </TableView>
+    </VBox>
+
+    <VBox fx:id="orderUpdateContainer" maxHeight="1.7976931348623157E308" spacing="8" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;" VBox.vgrow="ALWAYS">
+        <VBox.margin>
+            <Insets bottom="12.0" left="12.0" right="12.0" />
+        </VBox.margin>
+        <Label style="-fx-underline: true;" text="Order Updates" />
+      <TableView fx:id="orderbookTableView" prefHeight="200.0" prefWidth="200.0">
+        <columns>
+          <TableColumn fx:id="orderbookTimeTableColumn" prefWidth="135.0" text="Time" />
+          <TableColumn fx:id="orderbookMarketTableColumn" prefWidth="225.0" text="Market" />
+            <TableColumn fx:id="orderbookSideTableColumn" prefWidth="120.0" text="Buy/Sell" />
+            <TableColumn fx:id="orderbookVolumeTableColumn" prefWidth="120.0" text="Volume" />
+            <TableColumn fx:id="orderbookOrderTypeTableColumn" prefWidth="300.0" text="Order Type" />
+            <TableColumn fx:id="orderbookOrderStatusTableColumn" prefWidth="120.0" text="Order Status" />
+        </columns>
+      </TableView>
+    </VBox>
+
+</VBox>
