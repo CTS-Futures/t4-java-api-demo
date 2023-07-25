@@ -356,8 +356,8 @@ public class MainController {
         // Initialize the T4 host service.
         t4HostService = new T4HostService();
         t4HostService.initialize(new JavaHost(
-                "T4Android",
-                "F17CC97E-42D1-478A-8CE9-0A850B5C47A7",
+                "T4Example",
+                "112A04B0-5AAF-42F4-994E-FA7CB959C60B",
                 "com.cts.apidemo",
                 "1.0",
                 // TODO: Read from the current OS.
