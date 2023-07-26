@@ -5,11 +5,23 @@ import com.t4login.JavaHost;
 import com.t4login.Log;
 import com.t4login.api.*;
 import com.t4login.api.accounts.*;
+import com.t4login.api.chartdata.ChartData;
+import com.t4login.api.chartdata.ChartDataSubscriptionHandler;
+import com.t4login.api.chartdata.DataSeriesSubscription;
+import com.t4login.application.chart.BarInterval;
+import com.t4login.application.chart.ChartInterval;
+import com.t4login.application.chart.SessionTimeRange;
+import com.t4login.application.chart.chartdata.BarDataPoint;
+import com.t4login.application.chart.chartdata.BarDataSeries;
+import com.t4login.application.chart.chartdata.DataLoadArgs;
+import com.t4login.application.chart.chartdata.IBarDataPoint;
+import com.t4login.application.chart.markets.ExpiryMarket;
 import com.t4login.connection.ServerType;
 import com.t4login.datetime.NDateTime;
 import com.t4login.definitions.*;
 import com.t4login.definitions.priceconversion.Price;
 import com.t4login.definitions.priceconversion.PriceFormat;
+import com.t4login.util.ReturnFlag;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -18,13 +30,11 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.paint.Color;
+import javafx.util.Callback;
 
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 public class MainController {
 
@@ -46,9 +56,6 @@ public class MainController {
     public Button loadExchangeContractButton;
     public Button subscribeMarketDataButton;
     public Button unsubscribeMarketDataButton;
-    public Button subscribeChartDataButton;
-    public Button unsubscribeChartDataButton;
-    public Label chartDataFeed;
 
     public Spinner<Integer> orderVolumeSpinner;
     public RadioButton orderBidRadioButton;
@@ -79,6 +86,18 @@ public class MainController {
     public TableColumn<MarketDataSnapshot.DepthItem, Price> offerPriceTableColumn;
     public TableColumn<MarketDataSnapshot.DepthItem, Integer> offerVolumeTableColumn;
 
+    public ComboBox<BarInterval> barIntervalComboBox;
+    public TableView<BarDataPoint> chartDataTableView;
+    public Button subscribeChartDataButton;
+    public Button unsubscribeChartDataButton;
+
+    public TableColumn<BarDataPoint, NDateTime> chartDataDateTableColumn;
+    public TableColumn<BarDataPoint, NDateTime> chartDataTimeTableColumn;
+    public TableColumn<BarDataPoint, Integer> chartDataOpenTicksTableColumn;
+    public TableColumn<BarDataPoint, Integer> chartDataHighTicksTableColumn;
+    public TableColumn<BarDataPoint, Integer> chartDataLowTicksTableColumn;
+    public TableColumn<BarDataPoint, Integer> chartDataCloseTicksTableColumn;
+    public TableColumn<BarDataPoint, Integer> chartDataVolumeTableColumn;
 
     public TableView<PositionDisplay> positionsTableView;
     public TableColumn<PositionDisplay, String> positionMarketTableColumn;
@@ -242,6 +261,81 @@ public class MainController {
         }
     };
 
+    private final ChartDataSubscriptionHandler chartDataSubscriptionHandler = new ChartDataSubscriptionHandler() {
+
+        /**
+         * Called usually when historical data is received from the server. Update the chart data/display.
+         *
+         * @param updatedArgs The chart data that was updated.
+         */
+        @Override
+        public void onDataSeriesReset(List<DataLoadArgs> updatedArgs) {
+            for (DataLoadArgs updatedArg : updatedArgs) {
+                if (updatedArg.equals(mSubscribedChartDataArgs)) {
+                    updateChartDataDisplay();
+                }
+            }
+        }
+
+        /**
+         * Called usually when historical data is received from the server. Update the chart data/display.
+         *
+         * @param updatedArgs The chart data that was updated.
+         */
+        @Override
+        public void onDataSeriesUpdated(List<DataLoadArgs> updatedArgs) {
+            for (DataLoadArgs updatedArg : updatedArgs) {
+                if (updatedArg.equals(mSubscribedChartDataArgs)) {
+                    updateChartDataDisplay();
+                }
+            }
+        }
+
+        /**
+         * This method gets called when it is time to flush live data to the chart collections.         *
+         * NOTE: Just copy the implementation. It should probably get simplified for API use.
+         *
+         * @param handled
+         */
+        @Override
+        public void onDataSeriesFlushTimer(ReturnFlag handled) {
+            if (!handled.isSet()) {
+                handled.set();
+                // Call flushLiveTrades() on the UI thread.
+                Platform.runLater(() -> t4HostService.getChartData().flushLiveTrades());
+            }
+        }
+
+        /**
+         * This method gets called when the data series has been updated. Update the chart data/display.
+         *
+         * @param updatedArgs The chart data that was updated.
+         */
+        @Override
+        public void onDataSeriesFlushed(List<DataLoadArgs> updatedArgs) {
+            for (DataLoadArgs args : updatedArgs) {
+                if (args.equals(mSubscribedChartDataArgs)) {
+                    updateChartDataDisplay();
+                }
+            }
+        }
+
+        /**
+         * This method gets called periodically to make sure the app is still interested in the chart data subscription.
+         *
+         * @param subscriptions The subscriptions to check.
+         */
+        @Override
+        public void onCheckSubscriptions(List<DataSeriesSubscription> subscriptions) {
+            for (DataSeriesSubscription subscription : subscriptions) {
+                if (subscription.Args.equals(mSubscribedChartDataArgs)) {
+                    // Mark the subscription to keep it going.
+                    subscription.mark();
+                }
+            }
+        }
+    };
+
     //endregion
 
     //region Startup and Shutdown
@@ -266,6 +360,60 @@ public class MainController {
         bidVolumeTableColumn.setCellValueFactory(new PropertyValueFactory<>("volume"));
         offerPriceTableColumn.setCellValueFactory(new PropertyValueFactory<>("price"));
         offerVolumeTableColumn.setCellValueFactory(new PropertyValueFactory<>("volume"));
+
+        // Set up the bar interval combo box.
+        barIntervalComboBox.getItems().add(BarInterval.Bar30Second);
+        barIntervalComboBox.getItems().add(BarInterval.Bar1Minute);
+        barIntervalComboBox.getItems().add(BarInterval.Bar5Minute);
+        barIntervalComboBox.getItems().add(BarInterval.Bar15Minute);
+        // NOTE: Use the constructor to create any desired bar size.
+        barIntervalComboBox.getItems().add(new BarInterval(45, ChartInterval.Minute));
+        barIntervalComboBox.getItems().add(BarInterval.Bar1Hour);
+        barIntervalComboBox.getItems().add(BarInterval.Bar1Day);
+        barIntervalComboBox.getSelectionModel().select(2);
+
+        // Set up the chart data table.
+        chartDataDateTableColumn.setCellValueFactory(new PropertyValueFactory<>("tradeDate"));
+        chartDataDateTableColumn.setCellFactory(new Callback<>() {
+            @Override
+            public TableCell<BarDataPoint, NDateTime> call(TableColumn<BarDataPoint, NDateTime> param) {
+                return new TableCell<>() {
+                    @Override
+                    protected void updateItem(NDateTime item, boolean empty) {
+                        super.updateItem(item, empty);
+
+                        if (item == null || empty) {
+                            setText(null);
+                        } else {
+                            setText(item.toDateString());
+                        }
+                    }
+                };
+            }
+        });
+        chartDataTimeTableColumn.setCellValueFactory(new PropertyValueFactory<>("time"));
+        chartDataTimeTableColumn.setCellFactory(new Callback<>() {
+            @Override
+            public TableCell<BarDataPoint, NDateTime> call(TableColumn<BarDataPoint, NDateTime> param) {
+                return new TableCell<>() {
+                    @Override
+                    protected void updateItem(NDateTime item, boolean empty) {
+                        super.updateItem(item, empty);
+
+                        if (item == null || empty) {
+                            setText(null);
+                        } else {
+                            setText(item.toShortTimeString());
+                        }
+                    }
+                };
+            }
+        });
+        chartDataOpenTicksTableColumn.setCellValueFactory(new PropertyValueFactory<>("open"));
+        chartDataHighTicksTableColumn.setCellValueFactory(new PropertyValueFactory<>("high"));
+        chartDataLowTicksTableColumn.setCellValueFactory(new PropertyValueFactory<>("low"));
+        chartDataCloseTicksTableColumn.setCellValueFactory(new PropertyValueFactory<>("close"));
+        chartDataVolumeTableColumn.setCellValueFactory(new PropertyValueFactory<>("volume"));
 
         // Set up the position table.
         positionMarketTableColumn.setCellValueFactory(new PropertyValueFactory<>("marketDescription"));
@@ -312,9 +460,13 @@ public class MainController {
             accountProfitUpdater = null;
         }
 
+        // Unregister market data, etc.
         if (t4HostService != null) {
             // Unregister market data.
             t4HostService.getMarketData().unregisterForMarketData(marketDataHandler);
+
+            // Unregister chart data.
+            t4HostService.getChartData().unregisterForSubscriptionUpdates(chartDataSubscriptionHandler);
 
             // Unregister host service.
             t4HostService.unregisterHostServiceHandler(hostServiceHandler);
@@ -344,7 +496,7 @@ public class MainController {
         clearMarketData();
         clearContractPicker();
         clearAccountStatus();
-        clearPositonDisplay();
+        clearPositionDisplay();
         clearOrderBook();
         clearChartData();
     }
@@ -371,6 +523,9 @@ public class MainController {
         // Register host service handler.
         t4HostService.registerHostServiceHandler(hostServiceHandler);
         t4HostService.getMarketData().registerForMarketData(marketDataHandler);
+
+        // Register chart data handler.
+        t4HostService.getChartData().registerForSubscriptionUpdates(chartDataSubscriptionHandler);
 
         // Login.
         try {
@@ -452,7 +607,7 @@ public class MainController {
 
     private void updateServiceState() {
 
-        // Udpates service state display.
+        // Updates service state display.
         T4HostService.ServiceState serviceState = t4HostService.getServiceState();
         LoginResponse loginResponse = t4HostService.getLastLoginResponse();
 
@@ -505,7 +660,7 @@ public class MainController {
     private void onActiveAccountChanged() {
 
         // Clear the position display.
-        clearPositonDisplay();
+        clearPositionDisplay();
         clearOrderBook();
 
         // Get a handle to the AccountData class that we will use throughout the method.
@@ -964,7 +1119,7 @@ public class MainController {
 
     }
 
-    private void clearPositonDisplay() {
+    private void clearPositionDisplay() {
         positionsTableView.getItems().clear();
     }
 
@@ -997,8 +1152,54 @@ public class MainController {
 
     //region Chart Data
 
-    private void clearChartData() {
+    private DataLoadArgs mSubscribedChartDataArgs = null;
 
+    public void onSubscribeChartDataButtonClicked() {
+
+        if (mSubscribedChartDataArgs != null) {
+            // Unsubscribing the previous chart data isn't necessary.
+            mSubscribedChartDataArgs = null;
+        }
+
+        ExpiryMarket expiryMarket = new ExpiryMarket(mSubscribedMarket);
+
+        NDateTime selectedContractTradeDate = mSelectedContract.getTradeDate(NDateTime.now());
+
+        mSubscribedChartDataArgs = new DataLoadArgs.Builder()
+                .setMarket(expiryMarket)
+                .setSession(SessionTimeRange.Empty)
+                .setChartType(ChartType.Bar)
+                .setCloseWithSettlement(false)
+                .setBarInterval(barIntervalComboBox.getSelectionModel().getSelectedItem())
+                .setAnchorToSession(false)
+                .createDataLoadArgs();
+
+        t4HostService.getChartData().loadBarData(mSubscribedChartDataArgs, selectedContractTradeDate);
+    }
+
+    public void onUnsubscribeChartDataButtonClicked() {
+        mSubscribedChartDataArgs = null;
+        chartDataTableView.getItems().clear();
+    }
+
+    private void updateChartDataDisplay() {
+
+        final ObservableList<BarDataPoint> chartDataPoints = FXCollections.observableArrayList();
+
+        // Get the updated chart data.
+        BarDataSeries barDataSeries = t4HostService.getChartData().getBarDataSeries(mSubscribedChartDataArgs);
+
+        for (IBarDataPoint iBarDataPoint : barDataSeries) {
+            if (iBarDataPoint instanceof BarDataPoint barDataPoint) {
+                chartDataPoints.add(barDataPoint);
+            }
+        }
+
+        chartDataTableView.getItems().setAll(chartDataPoints.sorted((o1, o2) -> -1 * o1.getTime().compareTo(o2.getTime())));
+    }
+
+    private void clearChartData() {
+        chartDataTableView.getItems().clear();
     }
 
     //endregion

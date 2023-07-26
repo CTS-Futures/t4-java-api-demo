@@ -92,7 +92,7 @@
                 <Button fx:id="loadExchangeContractButton" onAction="#onSelectContractButtonClicked" prefWidth="250.0" text="Load" HBox.hgrow="ALWAYS" />
             </VBox>
 
-            <VBox fx:id="marketSubscriptionContainer" maxWidth="500" HBox.hgrow="SOMETIMES">
+            <VBox fx:id="marketSubscriptionContainer" maxWidth="500" HBox.hgrow="ALWAYS">
 
                 <HBox fx:id="marketSubscriptionControlsContainer" alignment="CENTER_LEFT" spacing="8.0">
                     <ComboBox fx:id="expiryPickerComboBox" maxWidth="1.7976931348623157E308" prefWidth="100.0" HBox.hgrow="ALWAYS" />
@@ -197,16 +197,31 @@
                 </HBox>
             </VBox>
 
-            <VBox fx:id="chartDataSubscriptionContainer" maxWidth="200" spacing="8" HBox.hgrow="ALWAYS">
+            <VBox fx:id="chartDataSubscriptionContainer" spacing="8" HBox.hgrow="SOMETIMES">
                 <HBox fx:id="chartDataControlsContainer" alignment="CENTER" spacing="8">
-                    <Button fx:id="subscribeChartDataButton" text="Subscribe" />
-                    <Button fx:id="unsubscribeChartDataButton" text="Unsubscribe" />
+               <HBox prefHeight="100.0" prefWidth="200.0" HBox.hgrow="ALWAYS">
+                  <children>
+                     <ComboBox fx:id="barIntervalComboBox" prefWidth="200.0" />
+                  </children>
+               </HBox>
+               <HBox prefHeight="100.0" prefWidth="200.0" spacing="8.0">
+                  <children>
+                          <Button fx:id="subscribeChartDataButton" onAction="#onSubscribeChartDataButtonClicked" prefWidth="85.0" text="Subscribe" />
+                          <Button fx:id="unsubscribeChartDataButton" onAction="#onUnsubscribeChartDataButtonClicked" prefWidth="85.0" text="Unsubscribe" />
+                  </children>
+               </HBox>
                 </HBox>
-                <Label fx:id="chartDataFeed" alignment="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;" text="Chart Data" textAlignment="CENTER" VBox.vgrow="ALWAYS">
-                    <VBox.margin>
-                        <Insets bottom="8.0" left="8.0" right="8.0" />
-                    </VBox.margin>
-                </Label>
+                <TableView fx:id="chartDataTableView" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS">
+                    <columns>
+                        <TableColumn fx:id="chartDataDateTableColumn" text="Date" />
+                        <TableColumn fx:id="chartDataTimeTableColumn" text="Time" />
+                        <TableColumn fx:id="chartDataOpenTicksTableColumn" text="Open" />
+                        <TableColumn fx:id="chartDataHighTicksTableColumn" text="High" />
+                        <TableColumn fx:id="chartDataLowTicksTableColumn" text="Low" />
+                        <TableColumn fx:id="chartDataCloseTicksTableColumn" text="Close" />
+                        <TableColumn fx:id="chartDataVolumeTableColumn" text="Volume" />
+                    </columns>
+                </TableView>
             </VBox>
         </HBox>
 

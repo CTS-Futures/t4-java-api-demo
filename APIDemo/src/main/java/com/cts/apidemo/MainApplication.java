@@ -22,7 +22,7 @@ public class MainApplication extends Application {
     public void start(Stage stage) throws IOException {
         logger.log("starting application...");
         FXMLLoader fxmlLoader = new FXMLLoader(MainApplication.class.getResource("main-view.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), 1120, 920);
+        Scene scene = new Scene(fxmlLoader.load(), 1220, 920);
         stage.setTitle("API Demo");
         stage.setScene(scene);
 
