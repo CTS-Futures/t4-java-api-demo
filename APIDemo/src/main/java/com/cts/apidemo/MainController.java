@@ -147,8 +147,12 @@ public class MainController {
 
         @Override
         public void onServiceStateChanged(T4HostService.ServiceState newState) {
-            // Marshal to the UI thread.
-            Platform.runLater(() -> MainController.this.onServiceStateChanged(newState));
+
+            if (newState.equals(T4HostService.ServiceState.Started)) {
+                t4HostService.beginConnect();
+            }
+
+            Platform.runLater(() -> MainController.this.updateServiceState());
         }
     };
 
@@ -1213,31 +1217,6 @@ public class MainController {
             t4HostService.destroy();
             t4HostService = null;
         }
-    }
-
-    private void onServiceStateChanged(T4HostService.ServiceState newState) {
-        logger.log("onServiceStateChanged(), newState: " + newState);
-
-        switch (newState) {
-            case Created -> {
-                logger.log("Handling Created service state");
-            }
-
-            // Initial load of form, nothing has been submitted.
-            case Started -> {
-                logger.log("Handling Started service state");
-                t4HostService.beginConnect();
-            }
-            case Connecting -> logger.log("Handling Connecting service state");
-            case Connected -> logger.log("Handling Connected state");
-            case LoginFailed -> logger.log("Handling LoginFailed service state");
-            case Disconnected -> logger.log("Handling Disconnected service state");
-            case Stopped -> logger.log("Handling Stopped service state");
-            default -> logger.log("Unhandled service state: " + newState);
-        }
-
-        // Update the status display.
-        updateServiceState();
     }
 
     //endregion

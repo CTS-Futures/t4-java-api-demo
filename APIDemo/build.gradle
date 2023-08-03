@@ -44,7 +44,7 @@ javafx {
 }
 
 dependencies {
-    implementation("com.t4login:t4api:4.7.53")
+    implementation("com.t4login:t4api:4.7.54")
 }
 
 jlink {
