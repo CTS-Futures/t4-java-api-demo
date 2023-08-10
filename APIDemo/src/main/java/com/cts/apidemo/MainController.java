@@ -16,6 +16,7 @@ import com.t4login.application.chart.chartdata.BarDataSeries;
 import com.t4login.application.chart.chartdata.DataLoadArgs;
 import com.t4login.application.chart.chartdata.IBarDataPoint;
 import com.t4login.application.chart.markets.ExpiryMarket;
+import com.t4login.application.settings.PriceDisplayMode;
 import com.t4login.connection.ServerType;
 import com.t4login.datetime.NDateTime;
 import com.t4login.definitions.*;
@@ -201,6 +202,17 @@ public class MainController {
 
             if (market != null && snapshot.Market.getMarketID().equals(market.getMarketID())) {
                 Platform.runLater(() -> MainController.this.onMarketUpdate(snapshot));
+            }
+        }
+
+        @Override
+        public void onMarketDepthTrade(MarketDepthTrade trade) {
+            Market market = mSubscribedMarket;
+
+            if (market != null && trade.getMarketID().equals(market.getMarketID())) {
+                //Platform.runLater(() -> MainController.this.onMarketUpdate(snapshot));
+                //Log.d(TAG, "onMarketDepthTrade(), Time: %s, Price: %s, Volume: %d", trade.getTime().toString(), trade.getLastTradePrice().toString(), trade.getLastTradeVolume());
+                Log.d(TAG, "onMarketDepthTrade(), Time: %s, Price: %s, Volume: %d", trade.getTime().toString(), PriceFormat.convertPriceToDisplayFormat(trade.getLastTradePrice(), market, PriceDisplayMode.RealDecimal), trade.getLastTradeVolume());
             }
         }
 
