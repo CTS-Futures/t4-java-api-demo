@@ -5,7 +5,6 @@ import com.t4login.JavaHost;
 import com.t4login.Log;
 import com.t4login.api.*;
 import com.t4login.api.accounts.*;
-import com.t4login.api.chartdata.ChartData;
 import com.t4login.api.chartdata.ChartDataSubscriptionHandler;
 import com.t4login.api.chartdata.DataSeriesSubscription;
 import com.t4login.application.chart.BarInterval;
@@ -185,7 +184,7 @@ public class MainController {
             if (market != null) {
                 SubscriptionLevel subscrLevel = subscriptions.get(market.getMarketID());
                 if (subscrLevel != null) {
-                    subscrLevel.update(DepthBuffer.Smart, DepthLevels.Normal);
+                    subscrLevel.update(DepthBuffer.Smart, DepthLevels.Normal, subscribeMBO());
                 }
             }
         }
@@ -234,6 +233,21 @@ public class MainController {
                 // Subscribe the market we have been waiting for.
                 subscribeMarket();
             }
+        }
+
+        @Override
+        public void onMarketByOrderReject(String marketID) {
+            Log.d(TAG, "onMarketByOrderReject(), SUBSCRIPTION REJECTED: %s", marketID);
+        }
+
+        @Override
+        public void onMarketByOrderSnapshot(MBOSnapshot snapshot) {
+            Log.d(TAG, "onMarketByOrderSnapshot(), SNAPSHOT: %s", snapshot.getMarketID());
+        }
+
+        @Override
+        public void onMarketByOrderUpdate(MBOUpdate update) {
+            Log.d(TAG, "onMarketByOrderUpdate(), UPDATE: %s", update.getMarketID());
         }
     };
 
@@ -358,6 +372,9 @@ public class MainController {
 
     @FXML
     public void initialize() {
+
+        // Set the log level.
+        Log.setLogLevel(Log.LogLevel.Debug);
 
         // Initialize the display.
         clearMarketData();
@@ -521,11 +538,17 @@ public class MainController {
 
         resetT4Service();
 
+        String appName = System.getenv("T4DEMO_APPLICATION");
+        appName = appName == null ? "T4Example" : appName;
+        String appLicense = System.getenv("T4DEMO_APPLICENSE");
+        appLicense = appLicense == null ? "112A04B0-5AAF-42F4-994E-FA7CB959C60B" : appLicense;
+
+
         // Initialize the T4 host service.
         t4HostService = new T4HostService();
         t4HostService.initialize(new JavaHost(
-                "T4Example",
-                "112A04B0-5AAF-42F4-994E-FA7CB959C60B",
+                appName,
+                appLicense,
                 "com.cts.apidemo",
                 "1.0",
                 // TODO: Read from the current OS.
@@ -897,7 +920,7 @@ public class MainController {
 
         if (mSubscribedMarket != null) {
             // Unsubscribe the market.
-            t4HostService.getMarketData().subscribeForMarketDepth(mSubscribedMarket, DepthBuffer.NoSubscription, DepthLevels.Undefined);
+            t4HostService.getMarketData().subscribeForMarketDepth(mSubscribedMarket, DepthBuffer.NoSubscription, DepthLevels.Undefined, false);
         }
 
         mSelectedMarketID = "";
@@ -905,6 +928,10 @@ public class MainController {
 
         // Clear the display.
         Platform.runLater(this::clearMarketData);
+    }
+
+    private boolean subscribeMBO() {
+        return true;
     }
 
     private void subscribeMarket() {
@@ -919,7 +946,7 @@ public class MainController {
 
             if (mSubscribedMarket != null) {
                 // Subscribe for market data.
-                t4HostService.getMarketData().subscribeForMarketDepth(mSubscribedMarket, DepthBuffer.Smart, DepthLevels.Normal);
+                t4HostService.getMarketData().subscribeForMarketDepth(mSubscribedMarket, DepthBuffer.Smart, DepthLevels.Normal, subscribeMBO());
 
                 // Update the market description.
                 subscribedMarketDecsriptionLabel.setText(mSubscribedMarket.getDescription());
@@ -971,6 +998,8 @@ public class MainController {
 
             // Update the last trade.
             lastTradeLabel.setText(String.format("%s@%s", Integer.toString(snapshot.LastTradeVolume()), PriceFormat.convertPriceToDisplayFormat(snapshot.LastTradePrice(), snapshot.Market)));
+
+            //Log.d(TAG, "onMarketUpdate(), Market: %s, Price: %s, Real Decimal: %s", snapshot.Market.getMarketID(), snapshot.LastTradePrice().toString(), Double.toString(PriceFormat.convertPriceToRealDecimal(snapshot.LastTradePrice(), snapshot.Market)));
         }
     }
 
@@ -1085,6 +1114,16 @@ public class MainController {
 
         // Check the submit result.
         if (orderSubmit.getSubmitResult() == SubmitResult.SubmitSuccess) {
+
+            // Get the order ID's.
+            List<String> orderIDs = new ArrayList<>();
+
+            for (int i = 0; i < orderSubmit.count(); i++) {
+                String orderID = orderSubmit.get(i).mOrder.getUniqueID();
+                orderIDs.add(orderID);
+            }
+
+
             alert(Alert.AlertType.CONFIRMATION, "Order Submitted", "Order was submitted successfully.");
         } else {
             alert(Alert.AlertType.ERROR, "Order Submission Failed", orderSubmit.getSubmitMessage());
