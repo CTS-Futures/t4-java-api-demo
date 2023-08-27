@@ -44,7 +44,9 @@ javafx {
 }
 
 dependencies {
-    implementation("com.t4login:t4api:4.7.65")
+    implementation("com.t4login:t4api:4.7.67")
+    implementation("org.json:json:20230618")
+    implementation("javax.json:javax.json-api:1.1.4")
 }
 
 jlink {

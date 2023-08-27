@@ -198,28 +198,20 @@
             </VBox>
 
             <VBox fx:id="chartDataSubscriptionContainer" spacing="8" HBox.hgrow="SOMETIMES">
-                <HBox fx:id="chartDataControlsContainer" alignment="CENTER" spacing="8">
-               <HBox prefHeight="100.0" prefWidth="200.0" HBox.hgrow="ALWAYS">
-                  <children>
-                     <ComboBox fx:id="barIntervalComboBox" prefWidth="200.0" />
-                  </children>
-               </HBox>
+                <HBox fx:id="chartDataControlsContainer" alignment="CENTER_LEFT" spacing="8">
                <HBox prefHeight="100.0" prefWidth="200.0" spacing="8.0">
                   <children>
-                          <Button fx:id="subscribeChartDataButton" onAction="#onSubscribeChartDataButtonClicked" prefWidth="85.0" text="Subscribe" />
-                          <Button fx:id="unsubscribeChartDataButton" onAction="#onUnsubscribeChartDataButtonClicked" prefWidth="85.0" text="Unsubscribe" />
+                          <Button fx:id="loadTradeDataButton" onAction="#onSubscribeChartDataButtonClicked" prefWidth="115.0" text="Load Trades" />
                   </children>
                </HBox>
                 </HBox>
                 <TableView fx:id="chartDataTableView" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS">
                     <columns>
                         <TableColumn fx:id="chartDataDateTableColumn" text="Date" />
-                        <TableColumn fx:id="chartDataTimeTableColumn" text="Time" />
-                        <TableColumn fx:id="chartDataOpenTicksTableColumn" text="Open" />
-                        <TableColumn fx:id="chartDataHighTicksTableColumn" text="High" />
-                        <TableColumn fx:id="chartDataLowTicksTableColumn" text="Low" />
-                        <TableColumn fx:id="chartDataCloseTicksTableColumn" text="Close" />
+                        <TableColumn fx:id="chartDataTimeTableColumn" prefWidth="120.0" text="Time" />
+                        <TableColumn fx:id="chartDataTradePriceTableColumn" text="Price" />
                         <TableColumn fx:id="chartDataVolumeTableColumn" text="Volume" />
+                        <TableColumn fx:id="chartDataAggressorTableColumn" text="Aggressor" />
                     </columns>
                 </TableView>
             </VBox>

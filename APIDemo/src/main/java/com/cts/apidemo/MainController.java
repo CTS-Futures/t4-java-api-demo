@@ -5,23 +5,16 @@ import com.t4login.JavaHost;
 import com.t4login.Log;
 import com.t4login.api.*;
 import com.t4login.api.accounts.*;
-import com.t4login.api.chartdata.ChartDataSubscriptionHandler;
-import com.t4login.api.chartdata.DataSeriesSubscription;
-import com.t4login.application.chart.BarInterval;
-import com.t4login.application.chart.ChartInterval;
-import com.t4login.application.chart.SessionTimeRange;
-import com.t4login.application.chart.chartdata.BarDataPoint;
-import com.t4login.application.chart.chartdata.BarDataSeries;
-import com.t4login.application.chart.chartdata.DataLoadArgs;
-import com.t4login.application.chart.chartdata.IBarDataPoint;
-import com.t4login.application.chart.markets.ExpiryMarket;
+import com.t4login.api.chartdata.ChartDataReader;
 import com.t4login.application.settings.PriceDisplayMode;
+import com.t4login.connection.IMessageHandler;
 import com.t4login.connection.ServerType;
 import com.t4login.datetime.NDateTime;
 import com.t4login.definitions.*;
+import com.t4login.definitions.chartdata.ChartDataState;
 import com.t4login.definitions.priceconversion.Price;
 import com.t4login.definitions.priceconversion.PriceFormat;
-import com.t4login.util.ReturnFlag;
+import com.t4login.messages.*;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -31,10 +24,23 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.paint.Color;
 import javafx.util.Callback;
+import org.json.JSONObject;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.math.BigDecimal;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class MainController {
 
@@ -86,18 +92,14 @@ public class MainController {
     public TableColumn<MarketDataSnapshot.DepthItem, Price> offerPriceTableColumn;
     public TableColumn<MarketDataSnapshot.DepthItem, Integer> offerVolumeTableColumn;
 
-    public ComboBox<BarInterval> barIntervalComboBox;
-    public TableView<BarDataPoint> chartDataTableView;
-    public Button subscribeChartDataButton;
-    public Button unsubscribeChartDataButton;
+    public TableView<Trade> chartDataTableView;
+    public Button loadTradeDataButton;
 
-    public TableColumn<BarDataPoint, NDateTime> chartDataDateTableColumn;
-    public TableColumn<BarDataPoint, NDateTime> chartDataTimeTableColumn;
-    public TableColumn<BarDataPoint, Integer> chartDataOpenTicksTableColumn;
-    public TableColumn<BarDataPoint, Integer> chartDataHighTicksTableColumn;
-    public TableColumn<BarDataPoint, Integer> chartDataLowTicksTableColumn;
-    public TableColumn<BarDataPoint, Integer> chartDataCloseTicksTableColumn;
-    public TableColumn<BarDataPoint, Integer> chartDataVolumeTableColumn;
+    public TableColumn<Trade, NDateTime> chartDataDateTableColumn;
+    public TableColumn<Trade, NDateTime> chartDataTimeTableColumn;
+    public TableColumn<Trade, Integer> chartDataTradePriceTableColumn;
+    public TableColumn<Trade, Integer> chartDataVolumeTableColumn;
+    public TableColumn<Trade, Integer> chartDataAggressorTableColumn;
 
     public TableView<PositionDisplay> positionsTableView;
     public TableColumn<PositionDisplay, String> positionMarketTableColumn;
@@ -122,6 +124,10 @@ public class MainController {
     private static T4HostService t4HostService;
 
     private ServerType overrideServerType = ServerType.Unknown;
+
+    private static final String apiBaseURL_Live = "https://api.t4login.com";
+    private static final String apiBaseURL_SIM = "https://api-sim.t4login.com";
+    private static final String apiBaseURL_Test = "https://api-test.t4login.com";
 
     //region Service Handlers
 
@@ -291,80 +297,6 @@ public class MainController {
         }
     };
 
-    private final ChartDataSubscriptionHandler chartDataSubscriptionHandler = new ChartDataSubscriptionHandler() {
-
-        /**
-         * Called usually when historical data is received from the server. Update the chart data/display.
-         *
-         * @param updatedArgs The chart data that was updated.
-         */
-        @Override
-        public void onDataSeriesReset(List<DataLoadArgs> updatedArgs) {
-            for (DataLoadArgs updatedArg : updatedArgs) {
-                if (updatedArg.equals(mSubscribedChartDataArgs)) {
-                    updateChartDataDisplay();
-                }
-            }
-        }
-
-        /**
-         * Called usually when historical data is received from the server. Update the chart data/display.
-         *
-         * @param updatedArgs The chart data that was updated.
-         */
-        @Override
-        public void onDataSeriesUpdated(List<DataLoadArgs> updatedArgs) {
-            for (DataLoadArgs updatedArg : updatedArgs) {
-                if (updatedArg.equals(mSubscribedChartDataArgs)) {
-                    updateChartDataDisplay();
-                }
-            }
-        }
-
-        /**
-         * This method gets called when it is time to flush live data to the chart collections.         *
-         * NOTE: Just copy the implementation. It should probably get simplified for API use.
-         *
-         * @param handled
-         */
-        @Override
-        public void onDataSeriesFlushTimer(ReturnFlag handled) {
-            if (!handled.isSet()) {
-                handled.set();
-                // Call flushLiveTrades() on the UI thread.
-                Platform.runLater(() -> t4HostService.getChartData().flushLiveTrades());
-            }
-        }
-
-        /**
-         * This method gets called when the data series has been updated. Update the chart data/display.
-         *
-         * @param updatedArgs The chart data that was updated.
-         */
-        @Override
-        public void onDataSeriesFlushed(List<DataLoadArgs> updatedArgs) {
-            for (DataLoadArgs args : updatedArgs) {
-                if (args.equals(mSubscribedChartDataArgs)) {
-                    updateChartDataDisplay();
-                }
-            }
-        }
-
-        /**
-         * This method gets called periodically to make sure the app is still interested in the chart data subscription.
-         *
-         * @param subscriptions The subscriptions to check.
-         */
-        @Override
-        public void onCheckSubscriptions(List<DataSeriesSubscription> subscriptions) {
-            for (DataSeriesSubscription subscription : subscriptions) {
-                if (subscription.Args.equals(mSubscribedChartDataArgs)) {
-                    // Mark the subscription to keep it going.
-                    subscription.mark();
-                }
-            }
-        }
-    };
 
     //endregion
 
@@ -394,22 +326,11 @@ public class MainController {
         offerPriceTableColumn.setCellValueFactory(new PropertyValueFactory<>("price"));
         offerVolumeTableColumn.setCellValueFactory(new PropertyValueFactory<>("volume"));
 
-        // Set up the bar interval combo box.
-        barIntervalComboBox.getItems().add(BarInterval.Bar30Second);
-        barIntervalComboBox.getItems().add(BarInterval.Bar1Minute);
-        barIntervalComboBox.getItems().add(BarInterval.Bar5Minute);
-        barIntervalComboBox.getItems().add(BarInterval.Bar15Minute);
-        // NOTE: Use the constructor to create any desired bar size.
-        barIntervalComboBox.getItems().add(new BarInterval(45, ChartInterval.Minute));
-        barIntervalComboBox.getItems().add(BarInterval.Bar1Hour);
-        barIntervalComboBox.getItems().add(BarInterval.Bar1Day);
-        barIntervalComboBox.getSelectionModel().select(2);
-
         // Set up the chart data table.
         chartDataDateTableColumn.setCellValueFactory(new PropertyValueFactory<>("tradeDate"));
         chartDataDateTableColumn.setCellFactory(new Callback<>() {
             @Override
-            public TableCell<BarDataPoint, NDateTime> call(TableColumn<BarDataPoint, NDateTime> param) {
+            public TableCell<Trade, NDateTime> call(TableColumn<Trade, NDateTime> param) {
                 return new TableCell<>() {
                     @Override
                     protected void updateItem(NDateTime item, boolean empty) {
@@ -427,7 +348,7 @@ public class MainController {
         chartDataTimeTableColumn.setCellValueFactory(new PropertyValueFactory<>("time"));
         chartDataTimeTableColumn.setCellFactory(new Callback<>() {
             @Override
-            public TableCell<BarDataPoint, NDateTime> call(TableColumn<BarDataPoint, NDateTime> param) {
+            public TableCell<Trade, NDateTime> call(TableColumn<Trade, NDateTime> param) {
                 return new TableCell<>() {
                     @Override
                     protected void updateItem(NDateTime item, boolean empty) {
@@ -436,17 +357,15 @@ public class MainController {
                         if (item == null || empty) {
                             setText(null);
                         } else {
-                            setText(item.toShortTimeString());
+                            setText(item.toDateTimeString());
                         }
                     }
                 };
             }
         });
-        chartDataOpenTicksTableColumn.setCellValueFactory(new PropertyValueFactory<>("open"));
-        chartDataHighTicksTableColumn.setCellValueFactory(new PropertyValueFactory<>("high"));
-        chartDataLowTicksTableColumn.setCellValueFactory(new PropertyValueFactory<>("low"));
-        chartDataCloseTicksTableColumn.setCellValueFactory(new PropertyValueFactory<>("close"));
+        chartDataTradePriceTableColumn.setCellValueFactory(new PropertyValueFactory<>("tradePrice"));
         chartDataVolumeTableColumn.setCellValueFactory(new PropertyValueFactory<>("volume"));
+        chartDataAggressorTableColumn.setCellValueFactory(new PropertyValueFactory<>("aggressor"));
 
         // Set up the position table.
         positionMarketTableColumn.setCellValueFactory(new PropertyValueFactory<>("marketDescription"));
@@ -455,7 +374,7 @@ public class MainController {
         positionSideTableColumn.setCellValueFactory(new PropertyValueFactory<>("positionDisplay"));
         postionWorkingTableColumn.setCellValueFactory(new PropertyValueFactory<>("workingDisplay"));
 
-        // Set up the orderbook table.
+        // Set up the order book table.
         orderbookTimeTableColumn.setCellValueFactory(new PropertyValueFactory<>("submitTime"));
         orderbookMarketTableColumn.setCellValueFactory(new PropertyValueFactory<>("marketDescription"));
         orderbookSideTableColumn.setCellValueFactory(new PropertyValueFactory<>("sideDisplay"));
@@ -498,9 +417,6 @@ public class MainController {
             // Unregister market data.
             t4HostService.getMarketData().unregisterForMarketData(marketDataHandler);
 
-            // Unregister chart data.
-            t4HostService.getChartData().unregisterForSubscriptionUpdates(chartDataSubscriptionHandler);
-
             // Unregister host service.
             t4HostService.unregisterHostServiceHandler(hostServiceHandler);
 
@@ -534,21 +450,27 @@ public class MainController {
         clearChartData();
     }
 
+    private String getAppName() {
+        String appName = System.getenv("T4DEMO_APPLICATION");
+        appName = appName == null ? "T4Example" : appName;
+        return appName;
+    }
+
+    private String getAppLicense() {
+        String appLicense = System.getenv("T4DEMO_APPLICENSE");
+        appLicense = appLicense == null ? "112A04B0-5AAF-42F4-994E-FA7CB959C60B" : appLicense;
+        return appLicense;
+    }
+
     private void login(ServerType serverType, String firm, String username, String password, String newPassword) {
 
         resetT4Service();
 
-        String appName = System.getenv("T4DEMO_APPLICATION");
-        appName = appName == null ? "T4Example" : appName;
-        String appLicense = System.getenv("T4DEMO_APPLICENSE");
-        appLicense = appLicense == null ? "112A04B0-5AAF-42F4-994E-FA7CB959C60B" : appLicense;
-
-
         // Initialize the T4 host service.
         t4HostService = new T4HostService();
         t4HostService.initialize(new JavaHost(
-                appName,
-                appLicense,
+                getAppName(),
+                getAppLicense(),
                 "com.cts.apidemo",
                 "1.0",
                 // TODO: Read from the current OS.
@@ -562,9 +484,6 @@ public class MainController {
         // Register host service handler.
         t4HostService.registerHostServiceHandler(hostServiceHandler);
         t4HostService.getMarketData().registerForMarketData(marketDataHandler);
-
-        // Register chart data handler.
-        t4HostService.getChartData().registerForSubscriptionUpdates(chartDataSubscriptionHandler);
 
         // Login.
         try {
@@ -634,6 +553,7 @@ public class MainController {
     }
 
     private void onLoggedIn() {
+
         // Initialize the account picker.
         initializeAccountPicker();
 
@@ -1207,50 +1127,274 @@ public class MainController {
 
     //region Chart Data
 
-    private DataLoadArgs mSubscribedChartDataArgs = null;
+    private final HttpClient client = HttpClient.newHttpClient();
 
-    public void onSubscribeChartDataButtonClicked() {
+    public static class Trade {
+        private final NDateTime _tradeDate;
+        private final NDateTime _time;
+        private final Price _tradePrice;
+        private final int _volume;
+        private final BidOffer _aggressor;
 
-        if (mSubscribedChartDataArgs != null) {
-            // Unsubscribing the previous chart data isn't necessary.
-            mSubscribedChartDataArgs = null;
+        public Trade(NDateTime tradeDate, NDateTime tm, Price tradePrice, int vol, BidOffer aggr) {
+            _tradeDate = tradeDate;
+            _time = tm;
+            _tradePrice = tradePrice;
+            _volume = vol;
+            _aggressor = aggr;
         }
 
-        ExpiryMarket expiryMarket = new ExpiryMarket(mSubscribedMarket);
+        public NDateTime getTradeDate() {
+            return _tradeDate;
+        }
 
-        NDateTime selectedContractTradeDate = mSelectedContract.getTradeDate(NDateTime.now());
+        public NDateTime getTime() {
+            return _time;
+        }
 
-        mSubscribedChartDataArgs = new DataLoadArgs.Builder()
-                .setMarket(expiryMarket)
-                .setSession(SessionTimeRange.Empty)
-                .setChartType(ChartType.Bar)
-                .setCloseWithSettlement(false)
-                .setBarInterval(barIntervalComboBox.getSelectionModel().getSelectedItem())
-                .setAnchorToSession(false)
-                .createDataLoadArgs();
+        public Price getTradePrice() {
+            return _tradePrice;
+        }
 
-        t4HostService.getChartData().loadBarData(mSubscribedChartDataArgs, selectedContractTradeDate);
+        public int getVolume() {
+            return _volume;
+        }
+
+        public BidOffer getAggressor() {
+            return _aggressor;
+        }
     }
 
-    public void onUnsubscribeChartDataButtonClicked() {
-        mSubscribedChartDataArgs = null;
-        chartDataTableView.getItems().clear();
+    public void onSubscribeChartDataButtonClicked() throws ExecutionException, InterruptedException {
+
+        downloadTradeDataAsync();
     }
 
-    private void updateChartDataDisplay() {
+    private String apiToken = "";
+    private NDateTime apiTokenExpiryUTC = NDateTime.MinValue;
 
-        final ObservableList<BarDataPoint> chartDataPoints = FXCollections.observableArrayList();
+    private void downloadTradeDataAsync() {
 
-        // Get the updated chart data.
-        BarDataSeries barDataSeries = t4HostService.getChartData().getBarDataSeries(mSubscribedChartDataArgs);
+        // Initialize the chart API.
+        ServerType serverType = t4HostService.getUserData().getServerType();
 
-        for (IBarDataPoint iBarDataPoint : barDataSeries) {
-            if (iBarDataPoint instanceof BarDataPoint barDataPoint) {
-                chartDataPoints.add(barDataPoint);
+        final String chartBaseURL;
+        switch (serverType) {
+            case Test -> chartBaseURL = apiBaseURL_Test;
+            case Simulator -> chartBaseURL = apiBaseURL_SIM;
+            default -> chartBaseURL = apiBaseURL_Live;
+        }
+
+        CompletableFuture.runAsync(() -> {
+
+            // Ensure the API token is usable.
+            refreshAPITokenViaHost();
+            //refreshAPITokenViaLoginAPI();
+
+            if (apiToken.isEmpty() || NDateTime.utcNow().AddSeconds(30.0).isAfter(apiTokenExpiryUTC)) {
+                Log.e(TAG, "downloadTradeDataAsync(), Failed to refresh API token.");
+                return;
+            }
+
+            // Note: t4HostService.getRemoteTime() is the best way to get the system time (CST.)
+            // Note: The Contract object will tell you the trade date for a given time in CST.
+            NDateTime startDate = mSubscribedMarket.Contract.getTradeDate(t4HostService.getRemoteTime());
+            NDateTime endDate = mSubscribedMarket.Contract.getTradeDate(t4HostService.getRemoteTime());
+
+            String url = chartBaseURL +
+                    "/chart/tradehistory" +
+                    "?exchangeID=" + URLEncoder.encode(mSubscribedMarket.getExchangeID()) +
+                    "&contractID=" + URLEncoder.encode(mSubscribedMarket.getContractID()) +
+                    "&marketID=" + URLEncoder.encode(mSubscribedMarket.getMarketID()) +
+                    // Note: t4HostService.getRemoteTime() is the best way to get the system time (CST.)
+                    // Note: The Contract object will tell you the trade date for a given time in CST.
+                    "&tradeDateStart=" + URLEncoder.encode(startDate.toDateString()) +
+                    "&tradeDateEnd=" + URLEncoder.encode(endDate.toDateString());
+
+
+            Log.d(TAG, "downloadTradeDataAsync(), Sending trade data request: %s", url);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + apiToken)
+                    .header("Accept", "application/octet-stream")
+                    .build();
+
+            try {
+                HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+
+                Log.d(TAG, "downloadTradeDataAsync(), Response: %d", response.statusCode());
+
+                if (response.statusCode() == 200) {
+
+                    InputStream inputStream = response.body();
+
+                    // The chart API returns a binary-encoded T4 platform message called MsgChartDataBatch
+                    //  when the Accept header is set to 'application/octet-stream' or 'application/t4'
+                    MsgChartDataBatch chartDataMessage = (MsgChartDataBatch) Message.getMessage(inputStream);
+
+                    Log.d(TAG, "downloadTradeDataAsync(), Received: %s", chartDataMessage);
+
+                    // The chart data is most efficiently (CPU and memory) read using a ChartDataReader.
+                    ChartDataReader chartReader = new ChartDataReader(chartDataMessage, true);
+
+                    ObservableList<Trade> trades = FXCollections.observableArrayList();
+
+                    while (chartReader.read()) {
+                        ChartDataState state = chartReader.getState();
+
+                        switch (state.Change) {
+                            case Trade -> {
+                                if (!state.DueToSpread && state.TradeVolume > 0) {
+                                    NDateTime tradeTime = new NDateTime(state.LastTimeTicks);
+                                    NDateTime tradeDate = state.TradeDate;
+                                    Price tradePrice = state.LastTradePrice;
+                                    int tradeVolume = state.TradeVolume;
+                                    BidOffer aggressor = state.AtBidOrOffer;
+
+                                    // Normal prices (needed if displaying a continuation style chart with data from multiple exipies.
+                                    if (!state.getMinPriceIncrement().equals(mSubscribedMarket.getMinPriceIncrement())) {
+                                        // Normalize price to current market.
+                                        BigDecimal tradeValue = tradePrice.toCash(state);
+                                        tradePrice = Price.fromCash(mSubscribedMarket, tradeValue);
+                                    }
+
+                                    trades.add(new Trade(tradeDate, tradeTime, tradePrice, tradeVolume, aggressor));
+                                }
+                            }
+                        }
+                    }
+
+                    Log.d(TAG, "downloadTradeDataAsync(), Received %d trades.", trades.size());
+
+                    // Marshaling back to the GUI thread
+                    Platform.runLater(() -> updateChartDataDisplay(trades));
+
+                } else {
+                    Log.e(TAG, "downloadTradeDataAsync(), Request failed with status code: %d", response.statusCode());
+                }
+
+            } catch (IOException | InterruptedException ex) {
+                Log.e(TAG, "downloadTradeDataAsync(), Request failed with exception", ex);
+                throw new RuntimeException(ex);
+            }
+        });
+    }
+
+    private void refreshAPITokenViaLoginAPI() {
+
+        if (apiToken.isEmpty() || NDateTime.utcNow().AddSeconds(30.0).isAfter(apiTokenExpiryUTC)) {
+
+            // Initialize the chart API.
+            ServerType serverType = t4HostService.getUserData().getServerType();
+
+            final String loginBaseURL;
+            switch (serverType) {
+                case Test -> loginBaseURL = apiBaseURL_Test;
+                case Simulator -> loginBaseURL = apiBaseURL_SIM;
+                default -> loginBaseURL = apiBaseURL_Live;
+            }
+
+            String url = loginBaseURL + "/login";
+
+            Log.d(TAG, "refreshAPITokenViaLoginAPI(), Sending login request: %s", url);
+
+            JSONObject loginBody = new JSONObject();
+            loginBody.put("userName", usernameInput.getText());
+            loginBody.put("password", passwordInput.getText());
+            loginBody.put("firm", firmInput.getText());
+            loginBody.put("appName", getAppName());
+            loginBody.put("appLicense", getAppLicense());
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(loginBody.toString()))
+                    .build();
+
+            try {
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+                Log.d(TAG, "downloadTradeDataAsync(), Response: %d", response.statusCode());
+
+                if (response.statusCode() == 200) {
+
+                    // Save the token.
+                    String apiTokenResponseBody = response.body();
+                    JSONObject apiTokenResponse = new JSONObject(apiTokenResponseBody);
+
+                    if (apiTokenResponse.has("token")) {
+                        apiToken = apiTokenResponse.getString("token");
+                        apiTokenExpiryUTC = NDateTime.fromUnixTimeStamp(apiTokenResponse.getLong("expires"));
+                        Log.d(TAG, "refreshAPITokenViaLoginAPI(), Refreshed API token. Expires: %s (UTC)", apiTokenExpiryUTC.toDateTimeString());
+                    } else {
+                        if (apiTokenResponse.has("failReason")) {
+                            Log.e(TAG, "refreshAPITokenViaLoginAPI(), Token refresh failed with reason: %s", apiTokenResponse.get("failReason"));
+                        } else {
+                            Log.e(TAG, "refreshAPITokenViaLoginAPI(), Token refresh failed.");
+                        }
+                    }
+                } else {
+                    Log.e(TAG, "refreshAPITokenViaLoginAPI(), Request failed with status code: %d", response.statusCode());
+                }
+            } catch (IOException | InterruptedException ex) {
+                Log.e(TAG, "refreshAPITokenViaLoginAPI(), Request failed with exception", ex);
+                throw new RuntimeException(ex);
             }
         }
+    }
 
-        chartDataTableView.getItems().setAll(chartDataPoints.sorted((o1, o2) -> -1 * o1.getTime().compareTo(o2.getTime())));
+    private void refreshAPITokenViaHost() {
+
+        if (apiToken.isEmpty() || NDateTime.utcNow().AddSeconds(30.0).isAfter(apiTokenExpiryUTC)) {
+
+            Log.d(TAG, "refreshAPITokenViaHost(), Refreshing API token via host.");
+
+            // Refresh the API token.
+            BlockingQueue<MsgAuthenticationTokenResponse> channel = new LinkedBlockingQueue<>();
+
+            IMessageHandler messageHandler = new IMessageHandler() {
+                @Override
+                public void onMessage(Message message) {
+                    if (message.getMessageType().equals(MessageType.AuthenticationTokenResponse)) {
+                        try {
+                            channel.put((MsgAuthenticationTokenResponse) message);
+                        } catch (InterruptedException ex) {
+                            Log.e(TAG, "refreshAPITokenViaHost(), Failed to publish authentication response to the channel", ex);
+                        }
+                    }
+                }
+            };
+
+            try {
+                t4HostService.registerMessageHandler(messageHandler);
+
+                MsgAuthenticationTokenRequest tokenRequest = new MsgAuthenticationTokenRequest();
+                tokenRequest.UserID = t4HostService.getUserData().getUser().getUserID();
+                t4HostService.sendMessage(tokenRequest);
+
+                // Wait for the response from the T4 backend.
+                MsgAuthenticationTokenResponse tokenResponse = channel.take();
+
+                if (tokenResponse.FailureReason.isEmpty()) {
+                    apiToken = tokenResponse.Token;
+                    apiTokenExpiryUTC = tokenResponse.ExpiresUTC;
+                    Log.d(TAG, "refreshAPITokenViaHost(), Refreshed API token. Expires: %s (UTC)", apiTokenExpiryUTC.toDateTimeString());
+                } else {
+                    Log.e(TAG, "refreshAPITokenViaHost(), Token request failed: %s", tokenResponse.FailureReason);
+                }
+            } catch (Exception ex) {
+                Log.e(TAG, "refreshAPITokenViaHost(), Error refreshing authentication token", ex);
+            } finally {
+                t4HostService.unregisterMessageHandler(messageHandler);
+            }
+        }
+    }
+
+    private void updateChartDataDisplay(ObservableList<Trade> trades) {
+
+
+        chartDataTableView.getItems().setAll(trades.sorted((o1, o2) -> -1 * o1.getTime().compareTo(o2.getTime())));
     }
 
     private void clearChartData() {
