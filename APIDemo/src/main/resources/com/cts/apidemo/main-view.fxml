@@ -198,12 +198,10 @@
             </VBox>
 
             <VBox fx:id="chartDataSubscriptionContainer" spacing="8" HBox.hgrow="SOMETIMES">
-                <HBox fx:id="chartDataControlsContainer" alignment="CENTER_LEFT" spacing="8">
-               <HBox prefHeight="100.0" prefWidth="200.0" spacing="8.0">
-                  <children>
-                          <Button fx:id="loadTradeDataButton" onAction="#onSubscribeChartDataButtonClicked" prefWidth="115.0" text="Load Trades" />
-                  </children>
-               </HBox>
+                <HBox fx:id="chartDataControlsContainer" alignment="CENTER_LEFT" spacing="48.0">
+                    <Button fx:id="loadTradeDataButton" onAction="#onSubscribeChartDataButtonClicked" prefWidth="115.0" text="Load Trades" />
+               <Region HBox.hgrow="ALWAYS" />
+               <Button fx:id="loadBarsButton" mnemonicParsing="false" onAction="#onLoadBarsButtonClicked" prefWidth="185.0" text="Load Day Bars (Logged)" />
                 </HBox>
                 <TableView fx:id="chartDataTableView" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS">
                     <columns>

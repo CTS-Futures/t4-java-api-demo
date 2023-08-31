@@ -6,12 +6,15 @@ import com.t4login.Log;
 import com.t4login.api.*;
 import com.t4login.api.accounts.*;
 import com.t4login.api.chartdata.ChartDataReader;
+import com.t4login.application.chart.ChartInterval;
 import com.t4login.application.settings.PriceDisplayMode;
 import com.t4login.connection.IMessageHandler;
 import com.t4login.connection.ServerType;
 import com.t4login.datetime.NDateTime;
 import com.t4login.definitions.*;
 import com.t4login.definitions.chartdata.ChartDataState;
+import com.t4login.definitions.chartdata.ChartDataStreamReaderAggr;
+import com.t4login.definitions.chartdata.ChartFormatAggr;
 import com.t4login.definitions.priceconversion.Price;
 import com.t4login.definitions.priceconversion.PriceFormat;
 import com.t4login.messages.*;
@@ -94,6 +97,7 @@ public class MainController {
 
     public TableView<Trade> chartDataTableView;
     public Button loadTradeDataButton;
+    public Button loadBarsButton;
 
     public TableColumn<Trade, NDateTime> chartDataDateTableColumn;
     public TableColumn<Trade, NDateTime> chartDataTimeTableColumn;
@@ -264,14 +268,6 @@ public class MainController {
         @Override
         public String getDescription() {
             return TAG + "(Account Picker)";
-        }
-
-        @Override
-        public void onActiveAccountChanged(Account acct) {
-            // If your application has multiple windows, this could be used as a signal as to the actively selected
-            // account has changed.
-            Platform.runLater(MainController.this::onActiveAccountChanged);
-            Platform.runLater(MainController.this::displayOrders);
         }
 
         @Override
@@ -604,45 +600,24 @@ public class MainController {
         AccountData accountData = t4HostService.getAccountData();
 
         // All the accounts are loaded.
+        accountPickerComboBox.getItems().clear();
         List<Account> accounts = accountData.getAccounts();
         accountPickerComboBox.getItems().addAll(accounts);
 
         // Select the active account.
-        int activeAccountIndex = accounts.indexOf(accountData.getActiveAccount());
-        if (activeAccountIndex >= 0) {
-            accountPickerComboBox.getSelectionModel().select(activeAccountIndex);
-        }
-
-        initializeAccountStatus();
-    }
-
-    private void onActiveAccountChanged() {
-
-        // Clear the position display.
-        clearPositionDisplay();
-        clearOrderBook();
-
-        // Get a handle to the AccountData class that we will use throughout the method.
-        AccountData accountData = t4HostService.getAccountData();
-
-        // Select the active account.
-        List<Account> accounts = accountData.getAccounts();
-        int activeAccountIndex = accounts.indexOf(accountData.getActiveAccount());
-        if (activeAccountIndex >= 0) {
-            accountPickerComboBox.getSelectionModel().select(activeAccountIndex);
-        }
+        accountPickerComboBox.getSelectionModel().select(0);
 
         initializeAccountStatus();
     }
 
     public void onAccountSelectionChanged() {
 
-        // Switch active account.
+        // Update the position and order displays.
         Account selctedAccount = accountPickerComboBox.getSelectionModel().getSelectedItem();
 
-        if (selctedAccount != null && !selctedAccount.getAccountID().equals(t4HostService.getAccountData().getActiveAccountID())) {
-            t4HostService.getAccountData().setActiveAccount(selctedAccount.getAccountID(), true);
-        }
+        displayOrders();
+        displayPositions();
+        displayAccountProfit();
     }
 
     //endregion
@@ -652,35 +627,28 @@ public class MainController {
     AccountProfitUpdater accountProfitUpdater;
 
     AccountProfitUpdater.UpdateHandler accountProfitUpdateHandler = new AccountProfitUpdater.UpdateHandler() {
-        @Override
-        public void onActiveAccountChanged(Account acct) {
-
-        }
 
         @Override
         public void onAccountProfitUpdated(AccountProfit profit) {
+
             // Update the account P&L and Cash.
             Platform.runLater(() -> MainController.this.onAccountProfitUpdated(profit));
         }
 
         @Override
         public void onPositionProfitUpdated(PositionProfit profit) {
+
             Platform.runLater(() -> MainController.this.onPositionProfitUpdated(profit));
         }
     };
 
     private void initializeAccountStatus() {
 
-        if (accountProfitUpdater != null) {
-            // Clean up previous instance. (Could happen on a window close.)
-            accountProfitUpdater.unregisterForUpdates(accountProfitUpdateHandler);
-            accountProfitUpdater.disconnect();
-            accountProfitUpdater = null;
+        if (accountProfitUpdater == null) {
+            accountProfitUpdater = new AccountProfitUpdater();
+            accountProfitUpdater.registerForUpdates(accountProfitUpdateHandler);
+            accountProfitUpdater.connect(t4HostService);
         }
-
-        accountProfitUpdater = new AccountProfitUpdater();
-        accountProfitUpdater.registerForUpdates(accountProfitUpdateHandler);
-        accountProfitUpdater.connect(t4HostService);
     }
 
     private final DecimalFormat cashFormatter = new DecimalFormat("#,##0");
@@ -690,8 +658,29 @@ public class MainController {
         // We can compute P&L based on last trade or bid/offer.
         // We also provide realized, unrealized and settlement P&L. Also cash and net equity.
 
-        profitLossLabel.setText(cashFormatter.format(profit.getPL()));
-        cashLabel.setText(cashFormatter.format(profit.getAvailableCash()));
+        Account selectedAccount = accountPickerComboBox.getSelectionModel().getSelectedItem();
+
+        if (selectedAccount != null && profit.Account.getAccountID().equals(selectedAccount.getAccountID())) {
+            profitLossLabel.setText(cashFormatter.format(profit.getPL()));
+            cashLabel.setText(cashFormatter.format(profit.getAvailableCash()));
+        }
+    }
+
+    private void displayAccountProfit() {
+
+        // Update the position display.
+        Account selectedAccount = accountPickerComboBox.getSelectionModel().getSelectedItem();
+
+        if (selectedAccount != null) {
+            AccountProfit profit = accountProfitUpdater.getAccountProfit(selectedAccount.getAccountID());
+            if (profit != null) {
+                profitLossLabel.setText(cashFormatter.format(profit.getPL()));
+                cashLabel.setText(cashFormatter.format(profit.getAvailableCash()));
+            } else {
+                profitLossLabel.setText("-");
+                cashLabel.setText("-");
+            }
+        }
     }
 
     private void clearAccountStatus() {
@@ -1002,7 +991,7 @@ public class MainController {
             return;
         }
 
-        String accountID = t4HostService.getAccountData().getActiveAccountID();
+        Account selctedAccount = accountPickerComboBox.getSelectionModel().getSelectedItem();
         Market market = mSubscribedMarket;
         BuySell side = orderBidRadioButton.isSelected() ? BuySell.Buy : BuySell.Sell;
         PriceType priceType = PriceType.Limit;
@@ -1019,7 +1008,7 @@ public class MainController {
         Price trailPrice = null;
 
         OrderSubmit orderSubmit = new OrderSubmit();
-        orderSubmit.add(accountID, market, side, priceType, timeType, volume, maxShow, limitPrice, stopPrice, trailPrice);
+        orderSubmit.add(selctedAccount.getAccountID(), market, side, priceType, timeType, volume, maxShow, limitPrice, stopPrice, trailPrice);
 
         // Validate the order (optional.)
         boolean validated = orderSubmit.validate(t4HostService.getMarketData().getMarketDataSnapshot(mSubscribedMarket.getMarketID()));
@@ -1078,20 +1067,29 @@ public class MainController {
             currentPLLabel.setText(cashFormatter.format(profit.getPL()));
         }
 
+        displayPositions();
+    }
+
+    private void displayPositions() {
+
         // Update the position display.
-        final ObservableList<PositionDisplay> positionData = FXCollections.observableArrayList();
-        Iterable<Position> thePositions = t4HostService.getAccountData().getActiveAccount().getPositions();
+        Account selectedAccount = accountPickerComboBox.getSelectionModel().getSelectedItem();
 
-        for (Position pos : thePositions) {
-            Market market = t4HostService.getMarketData().getMarket(pos.MarketID);
-            PositionProfit pp = accountProfitUpdater.getPositionProfit(pos.MarketID);
+        if (selectedAccount != null) {
+            final ObservableList<PositionDisplay> positionData = FXCollections.observableArrayList();
+            Iterable<Position> thePositions = selectedAccount.getPositions();
 
-            if (market != null && pp != null) {
-                positionData.add(new PositionDisplay(market, pp));
+            for (Position pos : thePositions) {
+                Market market = t4HostService.getMarketData().getMarket(pos.MarketID);
+                PositionProfit pp = accountProfitUpdater.getPositionProfit(selectedAccount.getAccountID(), pos.MarketID);
+
+                if (market != null && pp != null) {
+                    positionData.add(new PositionDisplay(market, pp));
+                }
             }
-        }
-        positionsTableView.getItems().setAll(positionData);
 
+            positionsTableView.getItems().setAll(positionData);
+        }
     }
 
     private void clearPositionDisplay() {
@@ -1103,12 +1101,12 @@ public class MainController {
     //region Order Book
 
     private void displayOrders() {
-        Account account = t4HostService.getAccountData().getActiveAccount();
+        Account selctedAccount = accountPickerComboBox.getSelectionModel().getSelectedItem();
 
         final ObservableList<OrderDisplay> orderData = FXCollections.observableArrayList();
 
-        if (account != null) {
-            for (Position position : account.getPositions()) {
+        if (selctedAccount != null) {
+            for (Position position : selctedAccount.getPositions()) {
                 Market market = t4HostService.getMarketData().getMarket(position.MarketID);
                 for (Order order : position.getOrders()) {
                     orderData.add(new OrderDisplay(market, order));
@@ -1166,8 +1164,11 @@ public class MainController {
     }
 
     public void onSubscribeChartDataButtonClicked() throws ExecutionException, InterruptedException {
-
         downloadTradeDataAsync();
+    }
+
+    public void onLoadBarsButtonClicked() {
+        downloadBarDataAsync();
     }
 
     private String apiToken = "";
@@ -1281,6 +1282,122 @@ public class MainController {
         });
     }
 
+
+    private void downloadBarDataAsync() {
+
+        // Initialize the chart API.
+        ServerType serverType = t4HostService.getUserData().getServerType();
+
+        final String chartBaseURL;
+        switch (serverType) {
+            case Test -> chartBaseURL = apiBaseURL_Test;
+            case Simulator -> chartBaseURL = apiBaseURL_SIM;
+            default -> chartBaseURL = apiBaseURL_Live;
+        }
+
+        CompletableFuture.runAsync(() -> {
+
+            // Ensure the API token is usable.
+            //refreshAPITokenViaHost();
+            refreshAPITokenViaLoginAPI();
+
+            if (apiToken.isEmpty() || NDateTime.utcNow().AddSeconds(30.0).isAfter(apiTokenExpiryUTC)) {
+                Log.e(TAG, "downloadBarDataAsync(), Failed to refresh API token.");
+                return;
+            }
+
+            // Note: t4HostService.getRemoteTime() is the best way to get the system time (CST.)
+            // Note: The Contract object will tell you the trade date for a given time in CST.
+            NDateTime endDate = mSubscribedMarket.Contract.getTradeDate(t4HostService.getRemoteTime());
+            NDateTime startDate = endDate.AddDays(-100);
+
+            String url = chartBaseURL +
+                    "/chart/barchart" +
+                    "?exchangeID=" + URLEncoder.encode(mSubscribedMarket.getExchangeID()) +
+                    "&contractID=" + URLEncoder.encode(mSubscribedMarket.getContractID()) +
+                    "&marketID=" + URLEncoder.encode(mSubscribedMarket.getMarketID()) +
+                    // Note: t4HostService.getRemoteTime() is the best way to get the system time (CST.)
+                    // Note: The Contract object will tell you the trade date for a given time in CST.
+                    "&tradeDateStart=" + URLEncoder.encode(startDate.toDateString()) +
+                    "&tradeDateEnd=" + URLEncoder.encode(endDate.toDateString()) +
+                    "&charttype=" + ChartType.Bar.getValue() +
+                    "&barinterval=" + ChartInterval.Day.getValue() +
+                    "&barperiod=" + 1;
+
+
+            Log.d(TAG, "downloadBarDataAsync(), Sending trade data request: %s", url);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + apiToken)
+                    .header("Accept", "application/octet-stream")
+                    .build();
+
+            try {
+                HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+
+                Log.d(TAG, "downloadBarDataAsync(), Response: %d", response.statusCode());
+
+                if (response.statusCode() == 200) {
+
+                    InputStream inputStream = response.body();
+
+                    // The chart API returns a binary-encoded T4 platform message called MsgChartDataBatch
+                    //  when the Accept header is set to 'application/octet-stream' or 'application/t4'
+                    MsgChartAggregatedData chartDataMessage = (MsgChartAggregatedData) Message.getMessage(inputStream);
+
+                    Log.d(TAG, "downloadBarDataAsync(), Received: %s", chartDataMessage);
+
+                    // The chart data is most efficiently (CPU and memory) read using a ChartDataReader.
+                    ChartDataStreamReaderAggr.read(chartDataMessage.Data, new ChartDataStreamReaderAggr.ChartDataHandler() {
+                        @Override
+                        public void onMarketDefinition(ChartFormatAggr.MarketDefinition marketDefinition) {
+                            // Handle as needed.
+                        }
+
+                        @Override
+                        public void onBar(ChartFormatAggr.Bar bar) {
+                            Log.d(TAG, "Bar: Trade Date: %s, Time: %s, O: %s, H: %s, L: %s, C: %s, Volume: %d, Market: %s",
+                                    bar.TradeDate.toDateString(),
+                                    bar.Time.toDateTimeString(),
+                                    bar.OpenPrice,
+                                    bar.HighPrice,
+                                    bar.LowPrice,
+                                    bar.ClosePrice,
+                                    bar.Volume,
+                                    bar.MarketID);
+                        }
+
+                        @Override
+                        public void onModeChange(String s, NDateTime nDateTime, NDateTime nDateTime1, MarketMode marketMode) {
+                            // Handle as needed.
+                        }
+
+                        @Override
+                        public void onSettlement(String s, NDateTime nDateTime, NDateTime nDateTime1, Price price, boolean b) {
+                            // Handle as needed.
+                        }
+
+                        @Override
+                        public void onOpenInterest(String s, NDateTime nDateTime, NDateTime nDateTime1, int i) {
+                            // Handle as needed.
+                        }
+                    });
+
+                } else {
+                    Log.e(TAG, "downloadBarDataAsync(), Request failed with status code: %d", response.statusCode());
+                }
+
+            } catch (IOException | InterruptedException ex) {
+                Log.e(TAG, "downloadBarDataAsync(), Request failed with exception", ex);
+                throw new RuntimeException(ex);
+            }
+        });
+    }
+
+    /**
+     * This method demonstrates how to get an API token via the T4 login API.
+     */
     private void refreshAPITokenViaLoginAPI() {
 
         if (apiToken.isEmpty() || NDateTime.utcNow().AddSeconds(30.0).isAfter(apiTokenExpiryUTC)) {
@@ -1344,6 +1461,9 @@ public class MainController {
         }
     }
 
+    /**
+     * This method demonstrates how to get an API token via the T4 backend directly.
+     */
     private void refreshAPITokenViaHost() {
 
         if (apiToken.isEmpty() || NDateTime.utcNow().AddSeconds(30.0).isAfter(apiTokenExpiryUTC)) {
