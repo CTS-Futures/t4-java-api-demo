@@ -200,8 +200,8 @@
             <VBox fx:id="chartDataSubscriptionContainer" spacing="8" HBox.hgrow="SOMETIMES">
                 <HBox fx:id="chartDataControlsContainer" alignment="CENTER_LEFT" spacing="48.0">
                     <Button fx:id="loadTradeDataButton" onAction="#onSubscribeChartDataButtonClicked" prefWidth="115.0" text="Load Trades" />
-               <Region HBox.hgrow="ALWAYS" />
-               <Button fx:id="loadBarsButton" mnemonicParsing="false" onAction="#onLoadBarsButtonClicked" prefWidth="185.0" text="Load Day Bars (Logged)" />
+                    <Region HBox.hgrow="ALWAYS" />
+                    <Button fx:id="loadBarsButton" mnemonicParsing="false" onAction="#onLoadBarsButtonClicked" prefWidth="185.0" text="Load Day Bars (Logged)" />
                 </HBox>
                 <TableView fx:id="chartDataTableView" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS">
                     <columns>
@@ -226,46 +226,68 @@
         <HBox alignment="CENTER_LEFT" spacing="8">
             <Spinner fx:id="orderVolumeSpinner" editable="true" initialValue="1" max="100" min="1" />
             <RadioButton fx:id="orderBidRadioButton" onAction="#bidRadioButtonClicked" text="Bid">
-            <toggleGroup>
-               <ToggleGroup fx:id="orderSideToggleGroup" />
-            </toggleGroup></RadioButton>
+                <toggleGroup>
+                    <ToggleGroup fx:id="orderSideToggleGroup" />
+                </toggleGroup>
+            </RadioButton>
             <RadioButton fx:id="orderOfferRadioButton" onAction="#offerRadioButtonClicked" text="Offer" toggleGroup="$orderSideToggleGroup" />
             <TextField fx:id="orderPriceTextField" promptText="Price" />
             <Button fx:id="orderSubmitButton" onAction="#orderSubmitButtonClicked" prefWidth="85.0" text="Submit" />
         </HBox>
     </VBox>
+    <HBox spacing="12.0" VBox.vgrow="ALWAYS">
+        <children>
+            <VBox prefWidth="700.0" spacing="12.0" HBox.hgrow="ALWAYS">
+                <children>
 
-    <VBox fx:id="positionUpdateContainer" maxHeight="1.7976931348623157E308" spacing="8" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;" VBox.vgrow="ALWAYS">
+                    <VBox fx:id="positionUpdateContainer" maxHeight="1.7976931348623157E308" spacing="8" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;" VBox.vgrow="ALWAYS">
+                        <Label style="-fx-underline: true;" text="Position Updates" />
+                        <TableView fx:id="positionsTableView" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                            <columns>
+                                <TableColumn fx:id="positionMarketTableColumn" prefWidth="300.0" text="Market" />
+                                <TableColumn fx:id="positionNetTableColumn" minWidth="0.0" prefWidth="120.0" text="Net" />
+                                <TableColumn fx:id="positionPLTableColumn" prefWidth="120.0" text="P&amp;L" />
+                                <TableColumn fx:id="positionSideTableColumn" prefWidth="120.0" text="Buy/Sell" />
+                                <TableColumn fx:id="postionWorkingTableColumn" prefWidth="120.0" text="Working" />
+                            </columns>
+                        </TableView>
+                    </VBox>
+
+                    <VBox fx:id="orderUpdateContainer" maxHeight="1.7976931348623157E308" spacing="8" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;" VBox.vgrow="ALWAYS">
+                        <Label style="-fx-underline: true;" text="Order Updates" />
+                        <TableView fx:id="orderbookTableView" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                            <columns>
+                                <TableColumn fx:id="orderbookTimeTableColumn" prefWidth="135.0" text="Time" />
+                                <TableColumn fx:id="orderbookMarketTableColumn" prefWidth="225.0" text="Market" />
+                                <TableColumn fx:id="orderbookSideTableColumn" prefWidth="120.0" text="Buy/Sell" />
+                                <TableColumn fx:id="orderbookVolumeTableColumn" prefWidth="120.0" text="Volume" />
+                                <TableColumn fx:id="orderbookOrderTypeTableColumn" prefWidth="300.0" text="Order Type" />
+                                <TableColumn fx:id="orderbookOrderStatusTableColumn" prefWidth="120.0" text="Order Status" />
+                            </columns>
+                        </TableView>
+                    </VBox>
+                </children>
+            </VBox>
+            <VBox fx:id="matchedTradeContainer" maxHeight="1.7976931348623157E308" prefWidth="300.0" spacing="8" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;" HBox.hgrow="ALWAYS">
+                <children>
+                        <Label style="-fx-underline: true;" text="Matched Trades" />
+                        <TableView fx:id="matchedTradeTableView" VBox.vgrow="ALWAYS">
+                            <columns>
+                                <TableColumn fx:id="matchedTradeTimeTableColumn" prefWidth="135.0" text="Time" />
+                                <TableColumn fx:id="matchedTradeMarketTableColumn" prefWidth="225.0" text="Market" />
+                                <TableColumn fx:id="matchedTradeAccountTableColumn" prefWidth="120.0" text="Account" />
+                                <TableColumn fx:id="matchedTradeRPLTableColumn" prefWidth="100.0" text="RPL" />
+                                <TableColumn fx:id="matchedTradeEntryQtyTableColumn" prefWidth="100.0" text="Entry Qty" />
+                                <TableColumn fx:id="matchedTradeEntryPriceTableColumn" prefWidth="100.0" text="Entry Price" />
+                                <TableColumn fx:id="matchedTradeClosePriceTableColumn" prefWidth="100.0" text="Close Price" />
+                            </columns>
+                        </TableView>
+                </children>
+            </VBox>
+        </children>
         <VBox.margin>
             <Insets bottom="12.0" left="12.0" right="12.0" />
         </VBox.margin>
-        <Label style="-fx-underline: true;" text="Position Updates" />
-      <TableView fx:id="positionsTableView" prefHeight="200.0" prefWidth="200.0">
-        <columns>
-          <TableColumn fx:id="positionMarketTableColumn" prefWidth="300.0" text="Market" />
-          <TableColumn fx:id="positionNetTableColumn" minWidth="0.0" prefWidth="120.0" text="Net" />
-            <TableColumn fx:id="positionPLTableColumn" prefWidth="120.0" text="P&amp;L" />
-            <TableColumn fx:id="positionSideTableColumn" prefWidth="120.0" text="Buy/Sell" />
-            <TableColumn fx:id="postionWorkingTableColumn" prefWidth="120.0" text="Working" />
-        </columns>
-      </TableView>
-    </VBox>
-
-    <VBox fx:id="orderUpdateContainer" maxHeight="1.7976931348623157E308" spacing="8" style="-fx-border-color: black; -fx-border-width: 2; -fx-border-style: solid; -fx-padding: 5;" VBox.vgrow="ALWAYS">
-        <VBox.margin>
-            <Insets bottom="12.0" left="12.0" right="12.0" />
-        </VBox.margin>
-        <Label style="-fx-underline: true;" text="Order Updates" />
-      <TableView fx:id="orderbookTableView" prefHeight="200.0" prefWidth="200.0">
-        <columns>
-          <TableColumn fx:id="orderbookTimeTableColumn" prefWidth="135.0" text="Time" />
-          <TableColumn fx:id="orderbookMarketTableColumn" prefWidth="225.0" text="Market" />
-            <TableColumn fx:id="orderbookSideTableColumn" prefWidth="120.0" text="Buy/Sell" />
-            <TableColumn fx:id="orderbookVolumeTableColumn" prefWidth="120.0" text="Volume" />
-            <TableColumn fx:id="orderbookOrderTypeTableColumn" prefWidth="300.0" text="Order Type" />
-            <TableColumn fx:id="orderbookOrderStatusTableColumn" prefWidth="120.0" text="Order Status" />
-        </columns>
-      </TableView>
-    </VBox>
+    </HBox>
 
 </VBox>

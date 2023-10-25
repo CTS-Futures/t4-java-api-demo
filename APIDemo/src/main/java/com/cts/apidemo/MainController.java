@@ -15,6 +15,7 @@ import com.t4login.definitions.*;
 import com.t4login.definitions.chartdata.ChartDataState;
 import com.t4login.definitions.chartdata.ChartDataStreamReaderAggr;
 import com.t4login.definitions.chartdata.ChartFormatAggr;
+import com.t4login.definitions.priceconversion.IMarketConversion;
 import com.t4login.definitions.priceconversion.Price;
 import com.t4login.definitions.priceconversion.PriceFormat;
 import com.t4login.messages.*;
@@ -29,14 +30,17 @@ import javafx.scene.paint.Color;
 import javafx.util.Callback;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.util.*;
@@ -44,6 +48,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class MainController {
 
@@ -120,6 +126,15 @@ public class MainController {
     public TableColumn<OrderDisplay, String> orderbookOrderTypeTableColumn;
     public TableColumn<OrderDisplay, String> orderbookOrderStatusTableColumn;
 
+    public TableView<MatchedTradeDisplay> matchedTradeTableView;
+    public TableColumn<MatchedTradeDisplay, NDateTime> matchedTradeTimeTableColumn;
+    public TableColumn<MatchedTradeDisplay, String> matchedTradeMarketTableColumn;
+    public TableColumn<MatchedTradeDisplay, String> matchedTradeAccountTableColumn;
+    public TableColumn<MatchedTradeDisplay, String> matchedTradeRPLTableColumn;
+    public TableColumn<MatchedTradeDisplay, String> matchedTradeEntryQtyTableColumn;
+    public TableColumn<MatchedTradeDisplay, String> matchedTradeEntryPriceTableColumn;
+    public TableColumn<MatchedTradeDisplay, String> matchedTradeClosePriceTableColumn;
+
     // endregion
 
     private static final String TAG = "MainController";
@@ -131,6 +146,7 @@ public class MainController {
 
     private static final String apiBaseURL_Live = "https://api.t4login.com";
     private static final String apiBaseURL_SIM = "https://api-sim.t4login.com";
+    //private static final String apiBaseURL_SIM = "http://localhost:63577";
     private static final String apiBaseURL_Test = "https://api-test.t4login.com";
 
     //region Service Handlers
@@ -377,6 +393,15 @@ public class MainController {
         orderbookVolumeTableColumn.setCellValueFactory(new PropertyValueFactory<>("volumeDisplay"));
         orderbookOrderTypeTableColumn.setCellValueFactory(new PropertyValueFactory<>("orderTypeDisplay"));
         orderbookOrderStatusTableColumn.setCellValueFactory(new PropertyValueFactory<>("statusDisplay"));
+
+        // Set up the matched trade table.
+        matchedTradeTimeTableColumn.setCellValueFactory(new PropertyValueFactory<>("closeTime"));
+        matchedTradeMarketTableColumn.setCellValueFactory(new PropertyValueFactory<>("marketDescription"));
+        matchedTradeAccountTableColumn.setCellValueFactory(new PropertyValueFactory<>("accountName"));
+        matchedTradeRPLTableColumn.setCellValueFactory(new PropertyValueFactory<>("rPLDisplay"));
+        matchedTradeEntryQtyTableColumn.setCellValueFactory(new PropertyValueFactory<>("volumeDisplay"));
+        matchedTradeEntryPriceTableColumn.setCellValueFactory(new PropertyValueFactory<>("entryPriceDisplay"));
+        matchedTradeClosePriceTableColumn.setCellValueFactory(new PropertyValueFactory<>("closePriceDisplay"));
 
         // Debugging help.
         String serverName = System.getenv("T4DEMO_SERVER");
@@ -1007,6 +1032,16 @@ public class MainController {
         Price stopPrice = null;
         Price trailPrice = null;
 
+        if (side.equals(BuySell.Buy)) {
+            MarketDataSnapshot snapshot = t4HostService.getMarketData().getMarketDataSnapshot(mSubscribedMarket.getMarketID());
+            stopPrice = snapshot.bestOffer().Price.addIncrements(mSubscribedMarket, 10);
+        } else {
+            MarketDataSnapshot snapshot = t4HostService.getMarketData().getMarketDataSnapshot(mSubscribedMarket.getMarketID());
+            stopPrice = snapshot.bestBid().Price.addIncrements(mSubscribedMarket, -10);
+        }
+
+        //submitOCOOrder(selctedAccount, mSubscribedMarket, side, timeType, volume, limitPrice, stopPrice);
+
         OrderSubmit orderSubmit = new OrderSubmit();
         orderSubmit.add(selctedAccount.getAccountID(), market, side, priceType, timeType, volume, maxShow, limitPrice, stopPrice, trailPrice);
 
@@ -1054,6 +1089,47 @@ public class MainController {
         alert.showAndWait();
     }
 
+    private void submitOCOOrder(Account account, Market market, BuySell side, TimeType timeType, int volume, Price limitPrice, Price stopPrice) {
+
+        boolean acctsLoaded =  t4HostService.getAccountData().areAccountsLoaded();
+
+        
+
+        int maxShow = 0;
+        Price trailPrice = null;
+
+        OrderSubmit orderSubmit = new OrderSubmit();
+        orderSubmit.add(account.getAccountID(), market, side, PriceType.Limit, timeType, volume, maxShow, limitPrice, null, trailPrice, "OCO01");
+        orderSubmit.add(account.getAccountID(), market, side, PriceType.StopMarket, timeType, volume, maxShow, null, stopPrice, trailPrice, "OCO02");
+        orderSubmit.Link = OrderLink.OCO;
+
+        // Validate the order (optional.)
+        boolean validated = orderSubmit.validate(t4HostService.getMarketData().getMarketDataSnapshot(mSubscribedMarket.getMarketID()));
+
+        if (!validated) {
+            alert(Alert.AlertType.ERROR, "Order Validation Failed", orderSubmit.getValidationMessage());
+            return;
+        }
+
+        // Submit the order.
+        t4HostService.getAccountData().submitNewOrder(orderSubmit);
+
+        // Check the submit result.
+        if (orderSubmit.getSubmitResult() == SubmitResult.SubmitSuccess) {
+
+            // Get the order ID's.
+            List<String> orderIDs = new ArrayList<>();
+
+            for (int i = 0; i < orderSubmit.count(); i++) {
+                String orderID = orderSubmit.get(i).mOrder.getUniqueID();
+                orderIDs.add(orderID);
+            }
+            alert(Alert.AlertType.CONFIRMATION, "Order Submitted", "Order was submitted successfully.");
+        } else {
+            alert(Alert.AlertType.ERROR, "Order Submission Failed", orderSubmit.getSubmitMessage());
+        }
+    }
+
     //endregion
 
     //region Position Display
@@ -1068,6 +1144,7 @@ public class MainController {
         }
 
         displayPositions();
+        displayMatchedTrades();
     }
 
     private void displayPositions() {
@@ -1094,6 +1171,33 @@ public class MainController {
 
     private void clearPositionDisplay() {
         positionsTableView.getItems().clear();
+    }
+
+    private void displayMatchedTrades() {
+
+        Account selectedAccount = accountPickerComboBox.getSelectionModel().getSelectedItem();
+
+        if (selectedAccount != null) {
+            final ObservableList<MatchedTradeDisplay> positionData = FXCollections.observableArrayList();
+            Iterable<Position> thePositions = selectedAccount.getPositions();
+
+            for (Position pos : thePositions) {
+                Market market = t4HostService.getMarketData().getMarket(pos.MarketID);
+                PositionProfit pp = accountProfitUpdater.getPositionProfit(selectedAccount.getAccountID(), pos.MarketID);
+
+                if (market != null && pp != null) {
+                    for (MatchedTrade match : pp.getMatchedTrades()) {
+                        positionData.add(new MatchedTradeDisplay(market, selectedAccount, match));
+                    }
+                }
+            }
+
+            matchedTradeTableView.getItems().setAll(positionData);
+        }
+    }
+
+    private void clearMatchedTrades() {
+
     }
 
     //endregion
@@ -1202,16 +1306,17 @@ public class MainController {
             NDateTime startDate = mSubscribedMarket.Contract.getTradeDate(t4HostService.getRemoteTime());
             NDateTime endDate = mSubscribedMarket.Contract.getTradeDate(t4HostService.getRemoteTime());
 
-            String url = chartBaseURL +
-                    "/chart/tradehistory" +
-                    "?exchangeID=" + URLEncoder.encode(mSubscribedMarket.getExchangeID()) +
-                    "&contractID=" + URLEncoder.encode(mSubscribedMarket.getContractID()) +
-                    "&marketID=" + URLEncoder.encode(mSubscribedMarket.getMarketID()) +
-                    // Note: t4HostService.getRemoteTime() is the best way to get the system time (CST.)
-                    // Note: The Contract object will tell you the trade date for a given time in CST.
-                    "&tradeDateStart=" + URLEncoder.encode(startDate.toDateString()) +
-                    "&tradeDateEnd=" + URLEncoder.encode(endDate.toDateString());
+//            String url = chartBaseURL +
+//                    "/chart/tradehistory" +
+//                    "?exchangeID=" + URLEncoder.encode(mSubscribedMarket.getExchangeID()) +
+//                    "&contractID=" + URLEncoder.encode(mSubscribedMarket.getContractID()) +
+//                    "&marketID=" + URLEncoder.encode(mSubscribedMarket.getMarketID()) +
+//                    // Note: t4HostService.getRemoteTime() is the best way to get the system time (CST.)
+//                    // Note: The Contract object will tell you the trade date for a given time in CST.
+//                    "&tradeDateStart=" + URLEncoder.encode(startDate.toDateString()) +
+//                    "&tradeDateEnd=" + URLEncoder.encode(endDate.toDateString());
 
+            String url = "https://api-sim.t4login.com/chart/tradehistory?exchangeID=CME_Eq&contractID=ES&marketID=XCME_Eq+ES+%28Z23%29&tradeDateStart=2023-10-19&tradeDateEnd=2023-10-19&since=2023-10-19T10%3A02%3A08.0000000";
 
             Log.d(TAG, "downloadTradeDataAsync(), Sending trade data request: %s", url);
 
@@ -1219,6 +1324,7 @@ public class MainController {
                     .uri(URI.create(url))
                     .header("Authorization", "Bearer " + apiToken)
                     .header("Accept", "application/octet-stream")
+                    .GET()
                     .build();
 
             try {
@@ -1248,6 +1354,7 @@ public class MainController {
                             case Trade -> {
                                 if (!state.DueToSpread && state.TradeVolume > 0) {
                                     NDateTime tradeTime = new NDateTime(state.LastTimeTicks);
+                                    long tradeTimeEpochMillis = tradeTime.toEpochMS();
                                     NDateTime tradeDate = state.TradeDate;
                                     Price tradePrice = state.LastTradePrice;
                                     int tradeVolume = state.TradeVolume;
@@ -1272,6 +1379,15 @@ public class MainController {
                     Platform.runLater(() -> updateChartDataDisplay(trades));
 
                 } else {
+
+                    InputStream inputStream = response.body();
+                    try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                        String responseBody = bufferedReader.lines().collect(Collectors.joining("\n"));
+                        Log.e(TAG, "downloadTradeDataAsync(), Request failed with status code: %d, body: %s", response.statusCode(), responseBody);
+                        return;
+                    } catch (Exception ex) {
+                    }
+
                     Log.e(TAG, "downloadTradeDataAsync(), Request failed with status code: %d", response.statusCode());
                 }
 
