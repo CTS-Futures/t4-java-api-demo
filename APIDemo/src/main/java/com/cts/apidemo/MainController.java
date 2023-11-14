@@ -268,12 +268,12 @@ public class MainController {
 
         @Override
         public void onMarketByOrderSnapshot(MBOSnapshot snapshot) {
-            Log.d(TAG, "onMarketByOrderSnapshot(), SNAPSHOT: %s", snapshot.getMarketID());
+            //Log.d(TAG, "onMarketByOrderSnapshot(), SNAPSHOT: %s", snapshot.getMarketID());
         }
 
         @Override
         public void onMarketByOrderUpdate(MBOUpdate update) {
-            Log.d(TAG, "onMarketByOrderUpdate(), UPDATE: %s", update.getMarketID());
+            //Log.d(TAG, "onMarketByOrderUpdate(), UPDATE: %s", update.getMarketID());
         }
     };
 
@@ -307,8 +307,20 @@ public class MainController {
         public void onOrderRemoved(Account acct, Position position, List<Order> updates) {
             Platform.runLater(MainController.this::displayOrders);
         }
+
+        @Override
+        public void onTrades(Account acct, Position position, List<com.t4login.api.accounts.Trade> trades) {
+            Platform.runLater(() -> MainController.this.displayTrades(acct, position, trades));
+        }
     };
 
+    public void displayTrades(Account acct, Position position, List<com.t4login.api.accounts.Trade> trades) {
+        for(com.t4login.api.accounts.Trade t : trades) {
+
+            Log.d(TAG, "onTrades() " + trades.size() + " trade qty: " + t.getVolume() + " " + t.getOrder().getUniqueID() + " " + t.getUniqueOrderID() + " " + t.getTradeSeq());
+
+        }
+    }
 
     //endregion
 
@@ -1032,13 +1044,13 @@ public class MainController {
         Price stopPrice = null;
         Price trailPrice = null;
 
-        if (side.equals(BuySell.Buy)) {
-            MarketDataSnapshot snapshot = t4HostService.getMarketData().getMarketDataSnapshot(mSubscribedMarket.getMarketID());
-            stopPrice = snapshot.bestOffer().Price.addIncrements(mSubscribedMarket, 10);
-        } else {
-            MarketDataSnapshot snapshot = t4HostService.getMarketData().getMarketDataSnapshot(mSubscribedMarket.getMarketID());
-            stopPrice = snapshot.bestBid().Price.addIncrements(mSubscribedMarket, -10);
-        }
+//        if (side.equals(BuySell.Buy)) {
+//            MarketDataSnapshot snapshot = t4HostService.getMarketData().getMarketDataSnapshot(mSubscribedMarket.getMarketID());
+//            stopPrice = snapshot.bestOffer().Price.addIncrements(mSubscribedMarket, 10);
+//        } else {
+//            MarketDataSnapshot snapshot = t4HostService.getMarketData().getMarketDataSnapshot(mSubscribedMarket.getMarketID());
+//            stopPrice = snapshot.bestBid().Price.addIncrements(mSubscribedMarket, -10);
+//        }
 
         //submitOCOOrder(selctedAccount, mSubscribedMarket, side, timeType, volume, limitPrice, stopPrice);
 
@@ -1214,6 +1226,23 @@ public class MainController {
                 Market market = t4HostService.getMarketData().getMarket(position.MarketID);
                 for (Order order : position.getOrders()) {
                     orderData.add(new OrderDisplay(market, order));
+
+                    // TEMP: Log the trades.
+
+                    List<com.t4login.api.accounts.Trade> trades = new ArrayList<>();
+                    for (com.t4login.api.accounts.Trade trade : order.getTrades())
+                    {
+                        trades.add(trade);
+                    }
+
+                    Log.e(TAG, "displayOrders(), OrderID: %s, Trades: %d", order.getUniqueID(), trades.size());
+
+                    int seq = 0;
+                    for (com.t4login.api.accounts.Trade trade : trades)
+                    {
+                        Log.e(TAG, "displayOrders(), TRADE OrderID: %s, TradeSeq: %d (expected: %d)", trade.getOrderID(), trade.getTradeSeq(), seq);
+                        seq++;
+                    }
                 }
             }
         }
@@ -1306,17 +1335,15 @@ public class MainController {
             NDateTime startDate = mSubscribedMarket.Contract.getTradeDate(t4HostService.getRemoteTime());
             NDateTime endDate = mSubscribedMarket.Contract.getTradeDate(t4HostService.getRemoteTime());
 
-//            String url = chartBaseURL +
-//                    "/chart/tradehistory" +
-//                    "?exchangeID=" + URLEncoder.encode(mSubscribedMarket.getExchangeID()) +
-//                    "&contractID=" + URLEncoder.encode(mSubscribedMarket.getContractID()) +
-//                    "&marketID=" + URLEncoder.encode(mSubscribedMarket.getMarketID()) +
-//                    // Note: t4HostService.getRemoteTime() is the best way to get the system time (CST.)
-//                    // Note: The Contract object will tell you the trade date for a given time in CST.
-//                    "&tradeDateStart=" + URLEncoder.encode(startDate.toDateString()) +
-//                    "&tradeDateEnd=" + URLEncoder.encode(endDate.toDateString());
-
-            String url = "https://api-sim.t4login.com/chart/tradehistory?exchangeID=CME_Eq&contractID=ES&marketID=XCME_Eq+ES+%28Z23%29&tradeDateStart=2023-10-19&tradeDateEnd=2023-10-19&since=2023-10-19T10%3A02%3A08.0000000";
+            String url = chartBaseURL +
+                    "/chart/tradehistory" +
+                    "?exchangeID=" + URLEncoder.encode(mSubscribedMarket.getExchangeID()) +
+                    "&contractID=" + URLEncoder.encode(mSubscribedMarket.getContractID()) +
+                    "&marketID=" + URLEncoder.encode(mSubscribedMarket.getMarketID()) +
+                    // Note: t4HostService.getRemoteTime() is the best way to get the system time (CST.)
+                    // Note: The Contract object will tell you the trade date for a given time in CST.
+                    "&tradeDateStart=" + URLEncoder.encode(startDate.toDateString()) +
+                    "&tradeDateEnd=" + URLEncoder.encode(endDate.toDateString());
 
             Log.d(TAG, "downloadTradeDataAsync(), Sending trade data request: %s", url);
 
@@ -1391,7 +1418,7 @@ public class MainController {
                     Log.e(TAG, "downloadTradeDataAsync(), Request failed with status code: %d", response.statusCode());
                 }
 
-            } catch (IOException | InterruptedException ex) {
+            } catch (Exception ex) {
                 Log.e(TAG, "downloadTradeDataAsync(), Request failed with exception", ex);
                 throw new RuntimeException(ex);
             }
