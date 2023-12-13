@@ -44,9 +44,13 @@ javafx {
 }
 
 dependencies {
-    implementation("com.t4login:t4api:4.7.91")
+    implementation("com.t4login:t4api:4.7.93")
+    //implementation files('D:\\devel\\t4-java-api\\build\\libs\\T4API-4.7.93-SNAPSHOT.jar')
+
     implementation("org.json:json:20230618")
     implementation("javax.json:javax.json-api:1.1.4")
+
+    implementation("com.google.code.gson:gson:2.9.0")
 }
 
 jlink {

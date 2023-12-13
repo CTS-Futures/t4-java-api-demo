@@ -760,7 +760,7 @@ public class MainController {
         }
     }
 
-    public void onContractSearchTextFieldKeyPressed(KeyEvent event) {
+    public void onContractSearchTextFieldKeyReleased(KeyEvent event) {
         initializeContractPickerTreeView();
     }
 
@@ -1344,6 +1344,9 @@ public class MainController {
                     // Note: The Contract object will tell you the trade date for a given time in CST.
                     "&tradeDateStart=" + URLEncoder.encode(startDate.toDateString()) +
                     "&tradeDateEnd=" + URLEncoder.encode(endDate.toDateString());
+
+
+            //String url = "https://api-sim.t4login.com/chart/tradehistory?end=2023-11-28T08%3A50%3A00.0000000&marketID=XCME_Eq+ES+%28Z23%29&start=2023-11-28T08%3A00%3A00.0000000&contractID=ES&exchangeID=CME_Eq";
 
             Log.d(TAG, "downloadTradeDataAsync(), Sending trade data request: %s", url);
 

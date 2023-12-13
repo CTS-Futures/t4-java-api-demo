@@ -87,7 +87,7 @@
 
 
             <VBox fx:id="searchControlsContainer" maxWidth="250.0" spacing="8" HBox.hgrow="ALWAYS">
-                <TextField fx:id="contractSearchTextField" onKeyPressed="#onContractSearchTextFieldKeyPressed" promptText="Search Contracts" />
+                <TextField fx:id="contractSearchTextField" onKeyReleased="#onContractSearchTextFieldKeyReleased" promptText="Search Contracts" />
                 <TreeView fx:id="contractPickerTreeView" minHeight="200.0" prefHeight="200.0" prefWidth="250.0" />
                 <Button fx:id="loadExchangeContractButton" onAction="#onSelectContractButtonClicked" prefWidth="250.0" text="Load" HBox.hgrow="ALWAYS" />
             </VBox>
